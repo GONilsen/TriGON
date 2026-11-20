@@ -4,6 +4,10 @@
   "after_dependencies": [
     "bermuda"
   ],
+  "categories": [
+    "presence_location.trackers",
+    "sensors.motion_presence"
+  ],
   "codeowners": [
     "@GONilsen"
   ],
@@ -20,5 +24,5 @@
   "issue_tracker": "https://github.com/GONilsen/TriGON/issues",
   "requirements": [],
   "single_config_entry": true,
-  "version": "0.9.0"
+  "version": "0.9.1"
 }

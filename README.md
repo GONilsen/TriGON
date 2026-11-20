@@ -114,7 +114,7 @@ Floor plans, geometry and calibration are stored locally in `.storage/` and are 
 
 - Accuracy depends on proxy placement and calibration: expect 1–3 m and reliable room detection in calibrated rooms.
 - Phones that are not tracked by Bermuda cannot be positioned.
-- The integration icon in *Devices & services* shows a placeholder until it is added to the Home Assistant brands repository.
+- The integration icon and logo are bundled in `brand/` and shown by Home Assistant 2026.3 or newer.
 
 ## Development
 

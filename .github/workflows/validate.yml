@@ -15,8 +15,6 @@ jobs:
       - uses: hacs/action@main
         with:
           category: integration
-          # Brand images are bundled in the integration; a PR to home-assistant/brands comes later.
-          ignore: brands
 
   hassfest:
     name: Hassfest

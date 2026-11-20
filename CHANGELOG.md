@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.1
+
+- Manifest categories (presence_location.trackers, sensors.motion_presence).
+- Brand images are shipped in `brand/` (shown by Home Assistant 2026.3+); removed dark icons identical to the light ones.
+
 ## 0.9.0 – first public release
 
 - Position (floor, room, x/y) per person from Bermuda BLE data: weighted least-squares trilateration with proxy heights and floor levels.
