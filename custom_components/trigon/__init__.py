@@ -56,8 +56,12 @@ def _monotonic() -> float:
         return time.monotonic()
 
 
-def person_entity_id(hass: HomeAssistant, pid: str) -> str:
-    return f"sensor.{pid}_{'posisjon' if is_norwegian(hass) else 'position'}"
+def person_entity_id(hass: HomeAssistant, pid: str, options: dict | None = None) -> str:
+    """Entity id of a person's position sensor (follows the entity registry if renamed)."""
+    from homeassistant.helpers import entity_registry as er
+
+    eid = er.async_get(hass).async_get_entity_id("sensor", DOMAIN, f"{DOMAIN}_{pid}_position")
+    return eid or f"sensor.{pid}_{'posisjon' if is_norwegian(hass, options) else 'position'}"
 
 
 class PersonState:
@@ -220,7 +224,7 @@ class Coordinator:
                          "z": round(s.z - m.floors[s.floor].level, 2), "rom": s.room,
                          "rom_fast": s.room_explicit} for s in m.scanners.values()],
             "personer": [{"id": p.id, "navn": p.name, "bermuda": p.bermuda,
-                          "entity": person_entity_id(self.hass, p.id)} for p in m.persons],
+                          "entity": person_entity_id(self.hass, p.id, self.entry.options)} for p in m.persons],
             "telefonhoyde": m.settings.phone_height,
             "planer": self.plans.meta if self.plans else {},
             "kalibrering": self.calib.summary(),

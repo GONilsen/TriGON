@@ -9,6 +9,7 @@ from homeassistant.core import callback
 
 from .const import (
     CONF_AWAY_AFTER,
+    CONF_LANGUAGE,
     CONF_MAX_DISTANCE,
     CONF_PHONE_HEIGHT,
     CONF_SIDEBAR,
@@ -49,5 +50,6 @@ class TrigonOptionsFlow(OptionsFlow):
                 vol.Optional(CONF_PHONE_HEIGHT, default=o[CONF_PHONE_HEIGHT]): vol.All(vol.Coerce(float), vol.Range(min=0, max=3)),
                 vol.Optional(CONF_MAX_DISTANCE, default=o[CONF_MAX_DISTANCE]): vol.All(vol.Coerce(float), vol.Range(min=3, max=50)),
                 vol.Optional(CONF_AWAY_AFTER, default=o[CONF_AWAY_AFTER]): vol.All(vol.Coerce(int), vol.Range(min=30, max=1800)),
+                vol.Optional(CONF_LANGUAGE, default=o[CONF_LANGUAGE]): vol.In(["auto", "en", "nb"]),
             }),
         )

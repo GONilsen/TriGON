@@ -74,7 +74,7 @@ Copy `custom_components/trigon` to `config/custom_components/trigon`, restart, a
 | `binary_sensor.<room>_occupancy` | Someone is in the room | `people` |
 | `sensor.trigon_map` | People at home | Geometry for custom cards |
 
-All entities belong to the **TriGON** service device. With Norwegian as the system language the entities are named in Norwegian.
+Entity names follow the Home Assistant system language (English or Norwegian); this can be overridden in the options.
 
 Example automation:
 
@@ -100,6 +100,7 @@ actions:
 | Phone height above floor | 1.0 m |
 | Ignore proxies further away than | 15 m |
 | Mark as away after no signal for | 120 s |
+| Language for entity names | auto |
 
 ## How it works
 

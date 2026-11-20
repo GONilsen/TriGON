@@ -23,7 +23,8 @@
           "update_interval": "Update interval (seconds)",
           "phone_height": "Phone height above floor (m)",
           "max_distance": "Ignore scanners further away than (m)",
-          "away_after": "Mark as away after no signal for (seconds)"
+          "away_after": "Mark as away after no signal for (seconds)",
+          "entity_language": "Language for entity names (auto = Home Assistant system language)"
         }
       }
     }

@@ -9,7 +9,6 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import Coordinator
 from .const import DOMAIN, SIGNAL_UPDATE, is_norwegian
-from .sensor import device_info
 
 
 class RoomPresence(BinarySensorEntity):
@@ -20,11 +19,10 @@ class RoomPresence(BinarySensorEntity):
     def __init__(self, coord: Coordinator, rid: str, name: str) -> None:
         self.coord = coord
         self.rid = rid
-        no = is_norwegian(coord.hass)
+        no = is_norwegian(coord.hass, coord.entry.options)
         self._attr_name = f"{name} - {'Tilstede' if no else 'Occupancy'}"
         self._attr_unique_id = f"{DOMAIN}_{rid}_occupancy"
         self.entity_id = f"binary_sensor.{rid}_{'tilstede' if no else 'occupancy'}"
-        self._attr_device_info = device_info()
         self._names: tuple = ()
         self._written = None
 

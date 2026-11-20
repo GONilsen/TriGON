@@ -23,7 +23,8 @@
           "update_interval": "Oppdateringsintervall (sekunder)",
           "phone_height": "Telefonens høyde over gulvet (m)",
           "max_distance": "Se bort fra proxyer lenger unna enn (m)",
-          "away_after": "Borte etter så lenge uten signal (sekunder)"
+          "away_after": "Borte etter så lenge uten signal (sekunder)",
+          "entity_language": "Språk for entitetsnavn (auto = systemspråket i Home Assistant)"
         }
       }
     }

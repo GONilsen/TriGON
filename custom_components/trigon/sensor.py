@@ -11,13 +11,6 @@ from . import Coordinator, person_entity_id
 from .const import DOMAIN, SIGNAL_UPDATE, is_norwegian
 
 
-def device_info():
-    from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
-
-    return DeviceInfo(identifiers={(DOMAIN, "trigon")}, name="TriGON", manufacturer="TriGON",
-                      model="BLE indoor positioning", entry_type=DeviceEntryType.SERVICE)
-
-
 def _q(v: float, step: float = 0.25) -> float:
     return round(round(v / step) * step, 2)
 
@@ -29,8 +22,7 @@ class _Base(SensorEntity):
     def __init__(self, coord: Coordinator) -> None:
         self.coord = coord
         self._last = None
-        self._attr_device_info = device_info()
-        self._no = is_norwegian(coord.hass)
+        self._no = is_norwegian(coord.hass, coord.entry.options)
 
     async def async_added_to_hass(self) -> None:
         self.async_on_remove(async_dispatcher_connect(self.hass, SIGNAL_UPDATE, self._update))
@@ -59,7 +51,7 @@ class PersonSensor(_Base):
         self.pid = pid
         self._attr_name = f"{name} - {'Posisjon' if self._no else 'Position'}"
         self._attr_unique_id = f"{DOMAIN}_{pid}_position"
-        self.entity_id = person_entity_id(coord.hass, pid)
+        self.entity_id = person_entity_id(coord.hass, pid, coord.entry.options)
         self._attrs: dict = {}
 
     @property
@@ -164,7 +156,8 @@ class MapSensor(_Base):
                 for f in sorted(m.floors.values(), key=lambda f: -f.level)
             ],
             "scanners": [{"name": s.name, "floor": s.floor, "x": s.x, "y": s.y} for s in m.scanners.values()],
-            "persons": [{"id": p.id, "name": p.name, "entity": person_entity_id(self.hass, p.id)} for p in m.persons],
+            "persons": [{"id": p.id, "name": p.name, "entity": person_entity_id(self.hass, p.id, self.coord.entry.options)}
+                        for p in m.persons],
         }
         return (home, id(m))
 
