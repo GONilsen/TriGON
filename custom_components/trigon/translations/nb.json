@@ -1,0 +1,31 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "TriGON",
+        "description": "Innendørs posisjon fra Bermuda-data. Etasjer, proxyer, rom og personer settes opp i TriGON-panelet.",
+        "data": {
+          "sidebar": "Vis TriGON i sidefeltet"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "TriGON er allerede satt opp.",
+      "single_instance_allowed": "TriGON er allerede satt opp."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "TriGON-innstillinger",
+        "data": {
+          "sidebar": "Vis TriGON i sidefeltet",
+          "update_interval": "Oppdateringsintervall (sekunder)",
+          "phone_height": "Telefonens høyde over gulvet (m)",
+          "max_distance": "Se bort fra proxyer lenger unna enn (m)",
+          "away_after": "Borte etter så lenge uten signal (sekunder)"
+        }
+      }
+    }
+  }
+}

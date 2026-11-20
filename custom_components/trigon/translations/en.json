@@ -1,0 +1,31 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "TriGON",
+        "description": "Indoor positioning from Bermuda BLE data. Floors, scanners, rooms and people are set up in the TriGON panel.",
+        "data": {
+          "sidebar": "Show TriGON in the sidebar"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "TriGON is already set up.",
+      "single_instance_allowed": "TriGON is already set up."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "TriGON options",
+        "data": {
+          "sidebar": "Show TriGON in the sidebar",
+          "update_interval": "Update interval (seconds)",
+          "phone_height": "Phone height above floor (m)",
+          "max_distance": "Ignore scanners further away than (m)",
+          "away_after": "Mark as away after no signal for (seconds)"
+        }
+      }
+    }
+  }
+}

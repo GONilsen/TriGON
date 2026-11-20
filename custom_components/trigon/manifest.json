@@ -1,0 +1,24 @@
+{
+  "domain": "trigon",
+  "name": "TriGON",
+  "after_dependencies": [
+    "bermuda"
+  ],
+  "codeowners": [
+    "@GONilsen"
+  ],
+  "config_flow": true,
+  "dependencies": [
+    "frontend",
+    "http",
+    "panel_custom",
+    "websocket_api"
+  ],
+  "documentation": "https://github.com/GONilsen/TriGON",
+  "integration_type": "service",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/GONilsen/TriGON/issues",
+  "requirements": [],
+  "single_config_entry": true,
+  "version": "0.9.0"
+}
