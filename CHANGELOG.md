@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.2
+
+- Entities no longer belong to a «TriGON» device, so names stay «Room - People» / «Name - Position» (newer HA prefixes the device name).
+- New option: language for entity names (auto, English, Norwegian).
+- Leftover devices from older versions can be deleted.
+
 ## 0.9.1
 
 - Manifest categories (presence_location.trackers, sensors.motion_presence).
