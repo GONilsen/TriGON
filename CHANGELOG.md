@@ -8,8 +8,7 @@
 - People show their Home Assistant profile picture when the person can be matched (via the BLE tracker or name).
 - Background plans are clipped to the rooms outside the Edit tab, so nothing sticks out.
 - Glow style: the dark background covers the whole card instead of a box around each floor; no plates around floors in 3D.
-- 3D zoom: +/−/reset buttons, mouse wheel, pinch with two fingers (two fingers also move the house), shift- or right-drag to move with a mouse.
-- 3D view: all floors stacked at an angle in one scene (Live chip «3D», card `view: 3d` or the 3D chip). Drag sideways to turn the house, with a mouse also up/down to tilt; double-click resets.
+- 3D view (chip «3D», card `view: 3d`): an exploded cutaway of the house – floors pulled apart so they never overlap, walls with height (low front walls), floor colour by room type, people as pins with picture and name, floor labels with people count. Drag sideways to turn; double-click resets. Pure SVG, so it looks the same in Safari and Chrome.
 - New dashboard card `custom:trigon-card` (loaded automatically, with a visual editor) and a one-click «Where are we» dashboard from the panel.
 - `sensor.trigon_map` has new attributes `plans` (background placement) and `person` per person.
 - Calibration/Edit: person dots no longer block taps, so you can pick a calibration point where your own dot is.
