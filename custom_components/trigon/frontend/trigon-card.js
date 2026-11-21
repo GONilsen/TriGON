@@ -221,6 +221,18 @@ class TrigonCard extends HTMLElement {
         im.setAttribute("x", plan.x); im.setAttribute("y", plan.y); im.setAttribute("width", plan.w); im.setAttribute("height", plan.h);
         im.setAttribute("preserveAspectRatio", "none"); im.setAttribute("class", "plan");
         im.setAttribute("opacity", glod ? Math.min(plan.opacity ?? 0.5, 0.28) : plan.opacity ?? 0.5);
+        if (rom.length) {
+          // Klipp tegningen til rommene, så den ikke stikker ut
+          const cp = document.createElementNS(NS, "clipPath");
+          cp.setAttribute("id", `tg-klipp-${e.id}`);
+          for (const r of rom) {
+            const pg = document.createElementNS(NS, "polygon");
+            pg.setAttribute("points", r.polygon.map((p) => p.join(",")).join(" "));
+            cp.appendChild(pg);
+          }
+          svg.querySelector("defs").appendChild(cp);
+          im.setAttribute("clip-path", `url(#tg-klipp-${e.id})`);
+        }
         lag.bg.appendChild(im);
       }
       const romEl = {};

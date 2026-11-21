@@ -408,7 +408,9 @@ class TrigonPanel extends HTMLElement {
       if (!pts.length) continue;
       const bg = this._bgRekt(e.id);
       void bg;
-      if (bg && this._visBg && this._bilder[e.id]) pts.push([bg.x, bg.y], [bg.x + bg.w, bg.y + bg.h]);
+      // Utenom Rediger klippes tegningen til rommene, så utsnittet følger bare rommene
+      const klipp = !red && e.rom.length > 0;
+      if (bg && this._visBg && this._bilder[e.id] && !klipp) pts.push([bg.x, bg.y], [bg.x + bg.w, bg.y + bg.h]);
       const pad = red ? 1.5 : 0.5;
       let x0 = Math.min(...pts.map((p) => p[0])) - pad, x1 = Math.max(...pts.map((p) => p[0])) + pad;
       let y0 = Math.min(...pts.map((p) => p[1])) - pad, y1 = Math.max(...pts.map((p) => p[1])) + pad;
@@ -436,6 +438,17 @@ class TrigonPanel extends HTMLElement {
         im.style.pointerEvents = "none";
         im.setAttribute("class", "plan");
         if (this._fane === "live") im.setAttribute("opacity", Math.min(bg.m.opacity ?? 0.5, 0.3));
+        if (klipp) {
+          const cp = document.createElementNS(NS, "clipPath");
+          cp.setAttribute("id", `trigon-klipp-${e.id}`);
+          for (const r of e.rom) {
+            const pg = document.createElementNS(NS, "polygon");
+            pg.setAttribute("points", r.polygon.map((p) => p.join(",")).join(" "));
+            cp.appendChild(pg);
+          }
+          defs.appendChild(cp);
+          im.setAttribute("clip-path", `url(#trigon-klipp-${e.id})`);
+        }
         lag.bg.appendChild(im);
       }
       const romEl = {};
