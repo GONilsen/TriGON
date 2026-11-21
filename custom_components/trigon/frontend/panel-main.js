@@ -39,7 +39,9 @@ const EN = {
   "Lista viser Bluetooth-proxyer i HA som ikke er plassert ennå.": "The list shows Bluetooth proxies in HA that have not been placed yet.",
   "Vis oppsettet som YAML": "Show the setup as YAML", "Sikkerhetskopi": "Backup",
   "Ta vare på dette som sikkerhetskopi av oppsettet.": "Keep this as a backup of the setup.",
-  "Etasjer": "Floors", "Alle etasjer": "All floors", "Zoom inn": "Zoom in", "Zoom ut": "Zoom out", "Hele etasjen": "Whole floor", "Gulvnivå": "Floor level", "Legg til etasje": "Add floor", "Ingen etasjer ennå.": "No floors yet.",
+  "Etasjer": "Floors", "Dashbord": "Dashboard", "Hvor er vi": "Where are we", "Lag «Hvor er vi»-dashbord": "Create «Where are we» dashboard",
+  "Lag et ferdig dashbord «Hvor er vi» med kartet og alle personer, synlig for alle brukere i sidemenyen. Kortet heter «TriGON» i kortvelgeren hvis du heller vil legge det inn selv.": "Create a ready-made «Where are we» dashboard with the map and everyone, visible to all users in the sidebar. The card is called «TriGON» in the card picker if you would rather add it yourself.",
+  "Dashbordet «Hvor er vi» finnes allerede. Vil du erstatte innholdet med standardoppsettet?": "The «Where are we» dashboard already exists. Replace its content with the default layout?", "Alle etasjer": "All floors", "Zoom inn": "Zoom in", "Zoom ut": "Zoom out", "Hele etasjen": "Whole floor", "Gulvnivå": "Floor level", "Legg til etasje": "Add floor", "Ingen etasjer ennå.": "No floors yet.",
   "Gulvnivå er høyden på gulvet i meter i forhold til hovedetasjen (f.eks. 0, 2,75 og −2,65).": "Floor level is the height of the floor in metres relative to the main floor (e.g. 0, 2.75 and −2.65).",
   "Navn på etasjen (f.eks. 1. etasje)": "Name of the floor (e.g. Ground floor)",
   "Bermuda-enhet": "Bermuda device", "Legg til person …": "Add person …", "Ingen personer ennå.": "No people yet.",
@@ -92,6 +94,7 @@ const EN_MONSTER = [
   [/^1 piksel = (.+) cm · bildet er (.+) × (.+) m$/, "1 pixel = $1 cm · the image is $2 × $3 m"],
   [/^øvre venstre hjørne i (.+)$/, "top left corner at $1"],
   [/^Automatisk \((.*)\)$/, "Automatic ($1)"],
+  [/^Kunne ikke lage dashbordet: (.*)$/s, "Could not create the dashboard: $1"],
   [/^Flytte nullpunktet hit \((.+)\)\?\nAlle rom, proxyer og målepunkter i alle etasjer flyttes slik at dette blir 0,0\.$/, "Move the origin here ($1)?\nAll rooms, proxies and measurement points on all floors are moved so that this becomes 0,0."],
   [/^Kunne ikke lagre: (.*)$/s, "Could not save: $1"], [/^Kunne ikke starte: (.*)$/s, "Could not start: $1"],
   [/^Opplasting feilet: (.*)$/s, "Upload failed: $1"], [/^Feil: (.*)$/s, "Error: $1"],
@@ -143,7 +146,8 @@ class TrigonPanel extends HTMLElement {
     this.attachShadow({ mode: "open" });
     this._fane = "live";
     this._valgt = null; // valgt person (live)
-    this._sirkler = true;
+    this._sirkler = false;
+    this._spor = {}; // spor per person: [{x, y, t, f}]
     this._kalPerson = null;
     this._kalPunkt = null; // {floor, x, y}
     this._varighet = 20;
@@ -264,7 +268,27 @@ class TrigonPanel extends HTMLElement {
         .chip .ant { font-size: 11px; font-weight: 700; min-width: 18px; height: 18px; border-radius: 9px; display: inline-grid; place-items: center;
           background: color-mix(in srgb, currentColor 18%, transparent); }
         .chip .ant:empty { display: none; }
-        .halo, .sirkel { pointer-events: none; }
+        .halo, .sirkel, .ring, .spor, .straale, .sig { pointer-events: none; }
+        .ring { fill: none; stroke-width: .05; transform-box: fill-box; transform-origin: center; animation: radar 2.8s ease-out infinite; }
+        .ring.r2 { animation-delay: 1.4s; }
+        @keyframes radar { from { transform: scale(1); opacity: .75; } to { transform: scale(3.6); opacity: 0; } }
+        .spor { fill: none; stroke-width: .08; stroke-linecap: round; }
+        .straale { stroke-dasharray: .12 .2; animation: flyt 1.1s linear infinite; stroke-linecap: round; }
+        @keyframes flyt { to { stroke-dashoffset: -.32; } }
+        .sig { font-size: .22px; font-weight: 700; text-anchor: middle; dominant-baseline: central; paint-order: stroke;
+          stroke: var(--card-background-color, #fff); stroke-width: .06px; }
+        .kart.glod svg { background: radial-gradient(120% 90% at 30% 15%, #16263f 0%, #0c1527 55%, #070c17 100%); border-radius: 14px; }
+        .glod .rf { fill: rgba(127, 239, 255, .035); stroke: #7FEFFF; stroke-opacity: .5; stroke-width: .05; }
+        .glod .rf.opptatt { fill: rgba(127, 239, 255, .16); stroke-opacity: .95; animation: puls 3.2s ease-in-out infinite; }
+        @keyframes puls { 0%, 100% { fill-opacity: .55; } 50% { fill-opacity: 1; } }
+        .glod .rn { fill: rgba(214, 232, 255, .72); }
+        .glod .px { fill: #A9D4FF; }
+        .glod .pxn { fill: rgba(169, 212, 255, .55); }
+        .glod image.plan { filter: invert(1) hue-rotate(180deg); }
+        .glod .sirkel { opacity: .9; }
+        .glod .sig { stroke: #0c1527; }
+        .glod .null line, .glod .null path { opacity: .6; }
+        @media (prefers-reduced-motion: reduce) { .ring, .straale, .glod .rf.opptatt { animation: none; } .ring { opacity: 0; } }
         .ikke-live .pers { pointer-events: none; opacity: .7; }
         .rf { fill: color-mix(in srgb, var(--primary-text-color) 4%, transparent);
           stroke: color-mix(in srgb, var(--primary-text-color) 35%, transparent); stroke-width: .06; stroke-linejoin: round; }
@@ -305,7 +329,8 @@ class TrigonPanel extends HTMLElement {
         .rad:hover, .rad.valgt { background: color-mix(in srgb, var(--primary-color) 10%, transparent); }
         .rad.borte { opacity: .5; }
         .ini { width: 30px; height: 30px; border-radius: 15px; color: #fff; font-weight: 700; font-size: 12px; display: grid;
-          place-items: center; flex: none; }
+          place-items: center; flex: none; background-size: cover; background-position: center; }
+        .ini.bilde { color: transparent; box-shadow: 0 0 0 2px var(--f); }
         .navn { font-weight: 600; font-size: 14px; }
         .sm { font-size: 12px; color: var(--secondary-text-color); }
         table { width: 100%; border-collapse: collapse; font-size: 12px; }
@@ -354,6 +379,7 @@ class TrigonPanel extends HTMLElement {
     const valgt = this._aktivEtasje(g.etasjer);
     this._tegnEtasjevalg(g.etasjer, valgt);
     kart.classList.toggle("ikke-live", this._fane !== "live");
+    kart.classList.toggle("glod", this._fane === "live");
     for (const e of g.etasjer) {
       if (valgt !== "alle" && e.id !== valgt) continue;
       const pts = e.rom.flatMap((r) => r.polygon).concat(g.proxyer.filter((p) => p.etasje === e.id).map((p) => [p.x, p.y]));
@@ -375,13 +401,19 @@ class TrigonPanel extends HTMLElement {
       const vv = v || grunn;
       svg.setAttribute("viewBox", `${vv.x} ${vv.y} ${vv.w} ${vv.h}`);
       const lag = {};
-      for (const n of ["bg", "rom", "sirkler", "kal", "px", "red", "pers", "mål"]) { lag[n] = document.createElementNS(NS, "g"); svg.appendChild(lag[n]); }
+      const defs = document.createElementNS(NS, "defs");
+      defs.innerHTML = `<filter id="trigon-glod" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur in="SourceGraphic" stdDeviation="0.09" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        <clipPath id="trigon-rund" clipPathUnits="objectBoundingBox"><circle cx=".5" cy=".5" r=".5"/></clipPath>`;
+      svg.appendChild(defs);
+      for (const n of ["bg", "rom", "sirkler", "spor", "kal", "px", "red", "pers", "mål"]) { lag[n] = document.createElementNS(NS, "g"); svg.appendChild(lag[n]); }
       if (bg && this._visBg && this._bilder[e.id]) {
         const im = document.createElementNS(NS, "image");
         im.setAttribute("href", this._bilder[e.id].url);
         im.setAttribute("x", bg.x); im.setAttribute("y", bg.y); im.setAttribute("width", bg.w); im.setAttribute("height", bg.h);
         im.setAttribute("preserveAspectRatio", "none"); im.setAttribute("opacity", bg.m.opacity ?? 0.5);
         im.style.pointerEvents = "none";
+        im.setAttribute("class", "plan");
+        if (this._fane === "live") im.setAttribute("opacity", Math.min(bg.m.opacity ?? 0.5, 0.3));
         lag.bg.appendChild(im);
       }
       const romEl = {};
@@ -389,6 +421,7 @@ class TrigonPanel extends HTMLElement {
         const pg = document.createElementNS(NS, "polygon");
         pg.setAttribute("points", r.polygon.map((p) => p.join(",")).join(" "));
         pg.setAttribute("class", "rf" + (red && this._valg && this._valg.type === "rom" && this._valg.id === r.id ? " valgtrom" : ""));
+        if (this._fane === "live") pg.setAttribute("filter", "url(#trigon-glod)");
         if (red) pg.addEventListener("click", (ev) => { if (this._nyttRom || this._plasser) return; ev.stopPropagation(); this._velg({ type: "rom", id: r.id }); });
         lag.rom.appendChild(pg);
         romEl[r.id] = pg;
@@ -619,6 +652,8 @@ class TrigonPanel extends HTMLElement {
     for (const [fid, f] of Object.entries(this._svg)) {
       const iBruk = [];
       f.lag.sirkler.innerHTML = "";
+      f.lag.spor.innerHTML = "";
+      if (this._fane === "live") this._tegnSpor(fid, f.lag.spor);
       for (const p of this._modell.personer) {
         const s = live.personer[p.id];
         if (!s || !s.hjemme || s.etasje !== fid || s.x == null) continue;
@@ -630,10 +665,26 @@ class TrigonPanel extends HTMLElement {
           g.setAttribute("class", "pers");
           const halo = document.createElementNS(NS, "circle");
           halo.setAttribute("class", "halo"); halo.setAttribute("fill", p.farge);
+          const ringer = [1, 2].map((n) => {
+            const c = document.createElementNS(NS, "circle");
+            c.setAttribute("r", 0.32); c.setAttribute("class", `ring r${n}`); c.setAttribute("stroke", p.farge);
+            return c;
+          });
           const dot = document.createElementNS(NS, "circle");
           dot.setAttribute("r", 0.32); dot.setAttribute("fill", p.farge); dot.setAttribute("stroke", "#fff"); dot.setAttribute("stroke-width", 0.05);
-          const t = document.createElementNS(NS, "text"); t.textContent = ini(p.navn);
-          g.append(halo, dot, t);
+          if (this._fane === "live") dot.setAttribute("filter", "url(#trigon-glod)");
+          g.append(halo, ...ringer, dot);
+          const bilde = this._bilde(p);
+          if (bilde) {
+            const im = document.createElementNS(NS, "image");
+            im.setAttribute("href", bilde); im.setAttribute("x", -0.27); im.setAttribute("y", -0.27);
+            im.setAttribute("width", 0.54); im.setAttribute("height", 0.54);
+            im.setAttribute("clip-path", "url(#trigon-rund)"); im.setAttribute("preserveAspectRatio", "xMidYMid slice");
+            g.append(im);
+          } else {
+            const t = document.createElementNS(NS, "text"); t.textContent = ini(p.navn);
+            g.append(t);
+          }
           g.addEventListener("click", (ev) => { ev.stopPropagation(); this._valgt = this._valgt === p.id ? null : p.id; this._tegnSide(); this._oppdaterKart(); });
           f.lag.pers.appendChild(g);
           m = f.el[p.id] = { g, halo };
@@ -651,6 +702,7 @@ class TrigonPanel extends HTMLElement {
       const n = this._fane === "live" && el.dataset.ant !== "alle" ? ant[el.dataset.ant] || 0 : 0;
       el.textContent = n ? String(n) : "";
     });
+    if (this._fane === "live" && this._valgt) this._tegnStraaler();
     // Avstandssirkler for valgt person (horisontal avstand i personens etasje)
     if (this._fane === "live" && this._sirkler && this._valgt) {
       const s = live.personer[this._valgt];
@@ -673,10 +725,65 @@ class TrigonPanel extends HTMLElement {
     }
   }
 
+  _bilde(p) {
+    const st = p.person && this._hass && this._hass.states[p.person];
+    return (st && st.attributes.entity_picture) || null;
+  }
+
+  _oppdaterSpor(m) {
+    const nå = Date.now();
+    for (const [pid, s] of Object.entries(m.personer || {})) {
+      if (!s || !s.hjemme || s.x == null) { delete this._spor[pid]; continue; }
+      let a = this._spor[pid] || [];
+      const sist = a[a.length - 1];
+      if (sist && sist.f !== s.etasje) a = [];
+      if (!sist || sist.f !== s.etasje || Math.hypot(sist.x - s.x, sist.y - s.y) > 0.15) a.push({ x: s.x, y: s.y, t: nå, f: s.etasje });
+      else sist.t = nå;
+      this._spor[pid] = a.filter((q) => nå - q.t < 240000).slice(-80);
+    }
+  }
+
+  // Hale bak hver person: siste minutter, svakere jo eldre
+  _tegnSpor(fid, lag) {
+    for (const p of this._modell.personer) {
+      const a = (this._spor[p.id] || []).filter((q) => q.f === fid);
+      for (let i = 1; i < a.length; i++) {
+        const l = document.createElementNS(NS, "line");
+        l.setAttribute("x1", a[i - 1].x); l.setAttribute("y1", a[i - 1].y); l.setAttribute("x2", a[i].x); l.setAttribute("y2", a[i].y);
+        l.setAttribute("class", "spor"); l.setAttribute("stroke", p.farge);
+        l.setAttribute("stroke-opacity", (0.08 + 0.55 * (i / (a.length - 1))).toFixed(2));
+        lag.appendChild(l);
+      }
+    }
+  }
+
+  // Signallinjer fra proxyene som hører valgt person (samme etasje); tykkere og sterkere jo bedre signal
+  _tegnStraaler() {
+    const s = this._live.personer[this._valgt];
+    const p = this._modell.personer.find((x) => x.id === this._valgt);
+    if (!s || !p || !s.hjemme || s.x == null || !this._svg[s.etasje]) return;
+    const lag = this._svg[s.etasje].lag.sirkler;
+    for (const [addr, r] of Object.entries(s.raw || {})) {
+      const px = this._modell.proxyer.find((q) => q.adresse === addr);
+      if (!px || px.etasje !== s.etasje || r.rssi == null) continue;
+      const k = Math.min(Math.max((r.rssi + 95) / 45, 0), 1);
+      const l = document.createElementNS(NS, "line");
+      l.setAttribute("x1", px.x); l.setAttribute("y1", px.y); l.setAttribute("x2", s.x); l.setAttribute("y2", s.y);
+      l.setAttribute("class", "straale"); l.setAttribute("stroke", p.farge);
+      l.setAttribute("stroke-width", (0.025 + 0.085 * k).toFixed(3)); l.setAttribute("stroke-opacity", (0.3 + 0.6 * k).toFixed(2));
+      lag.appendChild(l);
+      const t = document.createElementNS(NS, "text");
+      t.setAttribute("x", px.x + (s.x - px.x) * 0.35); t.setAttribute("y", px.y + (s.y - px.y) * 0.35);
+      t.setAttribute("class", "sig"); t.setAttribute("fill", p.farge); t.textContent = String(r.rssi);
+      lag.appendChild(t);
+    }
+  }
+
   // ---------- data ----------
   _mottak(m) {
     const forrigeKal = this._live && this._live.kalibrering;
     this._live = m;
+    this._oppdaterSpor(m);
     if (forrigeKal && !m.kalibrering) {
       // Måling ferdig: hent oppdatert modell (punkter)
       this._sistePunkt = m.siste_punkt;
@@ -712,7 +819,7 @@ class TrigonPanel extends HTMLElement {
       const fp = hjemme && s.fingeravtrykk ? ` · fingeravtrykk ${Math.round(s.fingeravtrykk * 100)} %` : "";
       const tekst = !s ? "venter …" : hjemme ? `${esc(s.rom || "?")} · ${esc(et)} · ±${s.avvik} m${fp}` : "Ikke hjemme";
       return `<div class="rad ${hjemme ? "" : "borte"} ${this._valgt === p.id ? "valgt" : ""}" data-p="${p.id}">
-        <div class="ini" style="background:${p.farge}">${ini(p.navn)}</div>
+        ${(() => { const b = this._bilde(p); return b ? `<div class="ini bilde" style="--f:${p.farge};background-image:url('${esc(b)}')">${ini(p.navn)}</div>` : `<div class="ini" style="background:${p.farge}">${ini(p.navn)}</div>`; })()}
         <div style="flex:1"><div class="navn">${esc(p.navn)}</div><div class="sm">${tekst}</div></div>
         <div class="sm">${s ? siden(s.sist_hort) : ""}</div></div>`;
     }).join("");
@@ -731,7 +838,10 @@ class TrigonPanel extends HTMLElement {
     }
     const kal = this._modell.kalibrering;
     const status = live && live.kalibrert ? `<span class="ok">Kalibrert · ${live.fingeravtrykk || 0} fingeravtrykk</span>` : `<span class="middels">Ukalibrert (Bermudas avstander)</span>`;
-    return `<div class="kort"><h3>Personer</h3>${rader || '<div class="sm">Ingen personer ennå. Legg dem til under «Rediger».</div>'}<div class="sm" style="margin-top:8px">${status} · trykk på en person for detaljer</div></div>${detalj}`;
+    return `<div class="kort"><h3>Personer</h3>${rader || '<div class="sm">Ingen personer ennå. Legg dem til under «Rediger».</div>'}<div class="sm" style="margin-top:8px">${status} · trykk på en person for detaljer</div></div>${detalj}
+      <div class="kort"><h3>Dashbord</h3>
+        <div class="sm">Lag et ferdig dashbord «Hvor er vi» med kartet og alle personer, synlig for alle brukere i sidemenyen. Kortet heter «TriGON» i kortvelgeren hvis du heller vil legge det inn selv.</div>
+        <div class="knapper" style="margin-top:10px"><button class="knapp sek lag-dash">Lag «Hvor er vi»-dashbord</button></div></div>`;
   }
 
   _romDekning() {
@@ -820,6 +930,7 @@ class TrigonPanel extends HTMLElement {
       this._valgt = this._valgt === el.dataset.p ? null : el.dataset.p; this._tegnSide(); this._oppdaterKart();
     }));
     const q = (s) => side.querySelector(s);
+    if (q(".lag-dash")) q(".lag-dash").addEventListener("click", () => this._lagDashbord());
     if (q(".sirk")) q(".sirk").addEventListener("change", (e) => { this._sirkler = e.target.checked; this._oppdaterKart(); });
     if (q(".kperson")) q(".kperson").addEventListener("change", (e) => { this._kalPerson = e.target.value; });
     if (q(".kvar")) q(".kvar").addEventListener("change", (e) => { this._varighet = Number(e.target.value); });
@@ -849,6 +960,32 @@ class TrigonPanel extends HTMLElement {
       this._modell.kalibrering = await this._hass.callWS({ type: `${D}/calibrate/delete`, point: b.dataset.id });
       this._tegnSide(); this._oppdaterKart();
     }));
+  }
+
+  async _lagDashbord() {
+    const url = this._norsk ? "trigon-hvor" : "trigon-where";
+    try {
+      const liste = await this._hass.callWS({ type: "lovelace/dashboards/list" });
+      const finnes = liste.some((d) => d.url_path === url);
+      if (finnes && !confirm(this._t("Dashbordet «Hvor er vi» finnes allerede. Vil du erstatte innholdet med standardoppsettet?"))) {
+        this._gaaTil(`/${url}`); return;
+      }
+      if (!finnes) {
+        await this._hass.callWS({ type: "lovelace/dashboards/create", url_path: url, title: this._t("Hvor er vi"),
+          icon: "mdi:map-marker-radius", require_admin: false, show_in_sidebar: true, mode: "storage" });
+      }
+      await this._hass.callWS({ type: "lovelace/config/save", url_path: url, config: {
+        title: this._t("Hvor er vi"),
+        views: [{ title: this._t("Hvor er vi"), path: "kart", icon: "mdi:map-marker-radius", type: "panel",
+          cards: [{ type: "custom:trigon-card" }] }],
+      } });
+      this._gaaTil(`/${url}/kart`);
+    } catch (e) { alert(this._t(`Kunne ikke lage dashbordet: ${e.message || e}`)); }
+  }
+
+  _gaaTil(sti) {
+    history.pushState(null, "", sti);
+    window.dispatchEvent(new CustomEvent("location-changed", { detail: { replace: false } }));
   }
 
   // ================= REDIGERING =================

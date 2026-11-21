@@ -4,6 +4,10 @@
 
 - Panel: one floor at a time with floor chips (Live also has "All floors", with a people count per floor). The choice is remembered per tab.
 - Panel: zoom and pan on the map – buttons, mouse wheel, pinch with two fingers, and drag with one finger when zoomed in.
+- Live view: dark "glow" map with glowing walls and pulsing occupied rooms, a radar pulse around each person, trails for the last minutes, and animated signal lines from the proxies that hear the selected person.
+- People show their Home Assistant profile picture when the person can be matched (via the BLE tracker or name).
+- New dashboard card `custom:trigon-card` (loaded automatically, with a visual editor) and a one-click «Where are we» dashboard from the panel.
+- `sensor.trigon_map` has new attributes `plans` (background placement) and `person` per person.
 - Calibration/Edit: person dots no longer block taps, so you can pick a calibration point where your own dot is.
 
 ## 0.9.2

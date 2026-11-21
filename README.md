@@ -65,6 +65,27 @@ Copy `custom_components/trigon` to `config/custom_components/trigon`, restart, a
 6. **People**: add the phones Bermuda tracks.
 7. **Calibration**: walk around with your phone – 4 points in normal rooms, 2 in small ones – and press **Compute calibration**.
 
+## Dashboard card
+
+TriGON ships its own dashboard card, **TriGON** in the card picker (`custom:trigon-card`) – no extra resource needed.
+
+The quickest way: open **TriGON → Live** and press **Create «Where are we» dashboard**. This adds a dashboard for all users with the live map.
+
+```yaml
+type: custom:trigon-card
+# all optional:
+title: Where are we
+view: tabs            # tabs (one floor at a time) or stacked
+style: glow           # glow (dark map) or theme
+show_people: true
+show_background: true
+trails: true
+show_scanners: false
+floor: 1_etg          # start floor; default follows where most people are
+```
+
+People get their picture from the matching Home Assistant person (linked through the Bermuda/Private BLE tracker or the first name).
+
 ## Entities
 
 | Entity | State | Attributes |

@@ -7,7 +7,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from . import Coordinator, person_entity_id
+from . import Coordinator, ha_person_for, person_entity_id
 from .const import DOMAIN, SIGNAL_UPDATE, is_norwegian
 
 
@@ -136,7 +136,7 @@ class MapSensor(_Base):
     """Geometry for dashboard cards (floors, rooms, scanners). State = number of people at home."""
 
     _attr_icon = "mdi:floor-plan"
-    _unrecorded_attributes = frozenset({"floors", "scanners", "persons"})
+    _unrecorded_attributes = frozenset({"floors", "scanners", "persons", "plans"})
 
     def __init__(self, coord: Coordinator) -> None:
         super().__init__(coord)
@@ -149,6 +149,10 @@ class MapSensor(_Base):
         m = self.coord.model
         home = sum(1 for st in self.coord.states.values() if st.home)
         self._attr_native_value = home
+        meta = self.coord.plans.meta if self.coord.plans else {}
+        plans = {fid: {"x": p["x"], "y": p["y"], "w": round(p["width"] * p["scale"], 3), "h": round(p["height"] * p["scale"], 3),
+                       "opacity": p.get("opacity", 0.5), "v": p.get("v", 1)}
+                 for fid, p in meta.items() if p.get("width") and fid in m.floors}
         self._attrs = {
             "floors": [
                 {"id": f.id, "name": f.name, "level": f.level,
@@ -156,10 +160,12 @@ class MapSensor(_Base):
                 for f in sorted(m.floors.values(), key=lambda f: -f.level)
             ],
             "scanners": [{"name": s.name, "floor": s.floor, "x": s.x, "y": s.y} for s in m.scanners.values()],
-            "persons": [{"id": p.id, "name": p.name, "entity": person_entity_id(self.hass, p.id, self.coord.entry.options)}
+            "persons": [{"id": p.id, "name": p.name, "entity": person_entity_id(self.hass, p.id, self.coord.entry.options),
+                         "person": ha_person_for(self.hass, p.bermuda, p.name)}
                         for p in m.persons],
+            "plans": plans,
         }
-        return (home, id(m))
+        return (home, id(m), tuple(sorted((k, v["v"], v["x"], v["y"], v["w"]) for k, v in plans.items())))
 
     @property
     def extra_state_attributes(self):

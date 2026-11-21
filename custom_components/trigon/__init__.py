@@ -64,6 +64,27 @@ def person_entity_id(hass: HomeAssistant, pid: str, options: dict | None = None)
     return eid or f"sensor.{pid}_{'posisjon' if is_norwegian(hass, options) else 'position'}"
 
 
+def ha_person_for(hass: HomeAssistant, bermuda: str, name: str) -> str | None:
+    """The Home Assistant person.* entity for a TriGON person (via its BLE tracker, else by first name)."""
+    from homeassistant.helpers import entity_registry as er
+
+    key = (bermuda or "").lower().replace(":", "")
+    trackers: set[str] = set()
+    if len(key) >= 12:
+        trackers = {e.entity_id for e in er.async_get(hass).entities.values()
+                    if e.domain == "device_tracker" and e.unique_id
+                    and str(e.unique_id).lower().replace(":", "").startswith(key)}
+    words = (name or "").lower().split()
+    by_name = None
+    for st in hass.states.async_all("person"):
+        if trackers & set(st.attributes.get("device_trackers") or []):
+            return st.entity_id
+        fn = str(st.attributes.get("friendly_name") or "").lower().split()
+        if by_name is None and words and fn[:len(words)] == words:
+            by_name = st.entity_id
+    return by_name
+
+
 class PersonState:
     def __init__(self) -> None:
         self.tracker = Tracker()
@@ -224,7 +245,8 @@ class Coordinator:
                          "z": round(s.z - m.floors[s.floor].level, 2), "rom": s.room,
                          "rom_fast": s.room_explicit} for s in m.scanners.values()],
             "personer": [{"id": p.id, "navn": p.name, "bermuda": p.bermuda,
-                          "entity": person_entity_id(self.hass, p.id, self.entry.options)} for p in m.persons],
+                          "entity": person_entity_id(self.hass, p.id, self.entry.options),
+                          "person": ha_person_for(self.hass, p.bermuda, p.name)} for p in m.persons],
             "telefonhoyde": m.settings.phone_height,
             "planer": self.plans.meta if self.plans else {},
             "kalibrering": self.calib.summary(),
@@ -294,6 +316,12 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
     fdir = Path(__file__).parent / "frontend"
     await hass.http.async_register_static_paths([StaticPathConfig(STATIC_URL, str(fdir), False)])
+    # Dashboard card (custom:trigon-card) is loaded on every dashboard
+    from homeassistant.components.frontend import add_extra_js_url
+
+    card = fdir / "trigon-card.js"
+    cver = hashlib.md5(await hass.async_add_executor_job(card.read_bytes)).hexdigest()[:8]
+    add_extra_js_url(hass, f"{STATIC_URL}/trigon-card.js?v={cver}")
     hass.http.register_view(PlanView())
     ws_register(hass)
     return True
