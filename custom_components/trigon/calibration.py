@@ -19,10 +19,28 @@ N_DEFAULT = 3.0
 N_MIN, N_MAX = 1.5, 5.0
 A_MIN, A_MAX = -95.0, -25.0
 MIN_SAMPLES = 3  # per scanner per point
+F_MIN, F_MAX = 0.0, 15.0  # extra loss (dB) through a floor slab
+F_MIN_POINTS = 3  # points on each side (same floor / other floor) needed to fit F
 
 
 def _median(v):
     return statistics.median(v) if v else None
+
+
+def _lstsq(X: list[list[float]], y: list[float]) -> list[float] | None:
+    """Least squares via the normal equations (2–3 unknowns)."""
+    k = len(X[0])
+    M = [[sum(r[i] * r[j] for r in X) for j in range(k)] + [sum(r[i] * t for r, t in zip(X, y))] for i in range(k)]
+    for i in range(k):
+        piv = max(range(i, k), key=lambda r: abs(M[r][i]))
+        M[i], M[piv] = M[piv], M[i]
+        if abs(M[i][i]) < 1e-9:
+            return None
+        for r in range(k):
+            if r != i:
+                f = M[r][i] / M[i][i]
+                M[r] = [a - f * c for a, c in zip(M[r], M[i])]
+    return [M[i][k] / M[i][i] for i in range(k)]
 
 
 @dataclass
@@ -138,12 +156,23 @@ class Calibration:
             self._fps = [self._fp(model, p) for p in self.data["points"] if p["floor"] in model.floors]
         return self._fps
 
-    def distance(self, addr: str, person: str, rssi: float) -> float | None:
+    def distance(self, addr: str, person: str, rssi: float, other_floor: bool = False) -> float | None:
+        """Distance from RSSI. other_floor=True removes the scanner's floor attenuation (phone on another floor)."""
         p = self.data["scanners"].get(addr)
         if not p:
             return None
         off = self.data["persons"].get(person, {}).get("offset", 0.0)
-        return 10 ** ((p["A"] + off - rssi) / (10 * p["n"]))
+        f = p.get("F", 0.0) if other_floor else 0.0
+        return 10 ** ((p["A"] + off - f - rssi) / (10 * p["n"]))
+
+    def obs(self, scanner, person: str, rssi: float):
+        """Observation with distances for both hypotheses (phone on the scanner's floor or not)."""
+        d = self.distance(scanner.address.lower(), person, rssi)
+        if d is None:
+            return None
+        p = self.data["scanners"].get(scanner.address.lower(), {})
+        d2 = self.distance(scanner.address.lower(), person, rssi, other_floor=True) if p.get("F") else None
+        return Obs(scanner, d, d2)
 
     # ---------- fitting ----------
     def fit(self, model: Model) -> dict:
@@ -162,22 +191,24 @@ class Calibration:
 
         scanners: dict[str, dict] = {}
         for addr, sc in model.scanners.items():
-            pairs = [(math.log10(true_d(p, sc)), p["rssi"][addr]) for p in pts if p["person"] == ref and addr in p["rssi"]]
-            if not pairs:
+            rows = [(math.log10(true_d(p, sc)), p["rssi"][addr], 1.0 if p["floor"] != sc.floor else 0.0)
+                    for p in pts if p["person"] == ref and addr in p["rssi"]]
+            if not rows:
                 continue
-            xs = [a for a, _ in pairs]
-            ys = [b for _, b in pairs]
-            if len(pairs) >= 3 and statistics.pstdev(xs) > 0.12:
-                mx, my = statistics.fmean(xs), statistics.fmean(ys)
-                sxx = sum((x - mx) ** 2 for x in xs)
-                slope = sum((x - mx) * (y - my) for x, y in pairs) / sxx
-                n = min(N_MAX, max(N_MIN, -slope / 10))
-            else:
-                n = N_DEFAULT
-            A = statistics.fmean(y + 10 * n * x for x, y in pairs)
+            n_other = sum(1 for r in rows if r[2])
+            use_f = n_other >= F_MIN_POINTS and len(rows) - n_other >= F_MIN_POINTS
+            xs = [a for a, _, _ in rows]
+            n, F = N_DEFAULT, 0.0
+            if len(rows) >= 3 and statistics.pstdev(xs) > 0.12:
+                sol = _lstsq([[1.0, -10 * x, -f] if use_f else [1.0, -10 * x] for x, _, f in rows], [y for _, y, _ in rows])
+                if sol:
+                    n = min(N_MAX, max(N_MIN, sol[1]))
+                    if use_f:
+                        F = min(F_MAX, max(F_MIN, sol[2]))
+            A = statistics.fmean(y + 10 * n * x + F * f for x, y, f in rows)
             A = min(A_MAX, max(A_MIN, A))
-            res = [y - (A - 10 * n * x) for x, y in pairs]
-            scanners[addr] = {"A": round(A, 2), "n": round(n, 2), "punkter": len(pairs),
+            res = [y - (A - 10 * n * x - F * f) for x, y, f in rows]
+            scanners[addr] = {"A": round(A, 2), "n": round(n, 2), "F": round(F, 1), "punkter": len(rows),
                               "rms_db": round(math.sqrt(statistics.fmean(r * r for r in res)), 1),
                               "navn": sc.name}
 
@@ -191,8 +222,9 @@ class Calibration:
                     continue
                 for addr, r in p["rssi"].items():
                     if addr in scanners and addr in model.scanners:
-                        sp = scanners[addr]
-                        res.append(r - (sp["A"] - 10 * sp["n"] * math.log10(true_d(p, model.scanners[addr]))))
+                        sp, sc = scanners[addr], model.scanners[addr]
+                        f = sp.get("F", 0.0) if p["floor"] != sc.floor else 0.0
+                        res.append(r - (sp["A"] - f - 10 * sp["n"] * math.log10(true_d(p, sc))))
             if res:
                 persons[pid] = {"offset": round(statistics.median(res), 2), "punkter": cnt[pid], "referanse": False}
 
@@ -217,9 +249,9 @@ class Calibration:
             obs = []
             for addr, r in p["rssi"].items():
                 sc = model.scanners.get(addr)
-                d = self.distance(addr, p["person"], r) if sc else None
-                if d is not None:
-                    obs.append(Obs(sc, d))
+                o = self.obs(sc, p["person"], r) if sc else None
+                if o is not None:
+                    obs.append(o)
             true_room = next((r for r in rooms_by_floor[p["floor"]] if point_in_polygon(p["x"], p["y"], r.polygon)), None)
             rid = true_room.id if true_room else "?"
             pr = per_room.setdefault(rid, {"navn": true_room.name if true_room else "?", "punkter": 0, "treff": 0, "feil_m": []})

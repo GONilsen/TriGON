@@ -32,7 +32,7 @@ def test_solve_exact_distances():
 
 def test_tracker_room_and_hysteresis():
     floors, sc = house()
-    s = Settings(smoothing=0.0)
+    s = Settings(smoothing=0.0, room_confirm=2)
     t = Tracker()
     r = t.update(obs_for(sc, 2.0, 2.5), floors, s)
     assert r.room.id == "a"

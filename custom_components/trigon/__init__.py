@@ -85,6 +85,9 @@ def ha_person_for(hass: HomeAssistant, bermuda: str, name: str) -> str | None:
     return by_name
 
 
+RSSI_SMOOTHING = 0.7  # share of the previous value (each round is ~5 s)
+
+
 class PersonState:
     def __init__(self) -> None:
         self.tracker = Tracker()
@@ -93,6 +96,14 @@ class PersonState:
         self.last_heard = None  # datetime (UTC)
         self.last_heard_mono: float | None = None
         self.raw: dict[str, dict] = {}
+        self.filt: dict[str, tuple[float, float]] = {}  # scanner -> (smoothed RSSI, time)
+
+    def smooth(self, addr: str, rssi: float, now: float) -> float:
+        """Exponential smoothing of RSSI per scanner between rounds (reset after a 20 s gap)."""
+        prev = self.filt.get(addr)
+        v = rssi if prev is None or now - prev[1] > 20 else RSSI_SMOOTHING * prev[0] + (1 - RSSI_SMOOTHING) * rssi
+        self.filt[addr] = (v, now)
+        return v
 
 
 class Coordinator:
@@ -207,13 +218,16 @@ class Coordinator:
             raw = raw_by_scanner(dev, self.model.scanners, now_mono)
             obs = []
             for addr, r in raw.items():
-                d = self.calib.distance(addr, p.id, r["rssi"]) if use_cal and r["rssi"] is not None else None
-                r["kalibrert"] = d is not None
-                if d is None:
-                    d = r["bermuda"]
-                r["d"] = round(d, 2) if d is not None else None
-                if d is not None:
-                    obs.append(Obs(self.model.scanners[addr], d))
+                if r["rssi"] is not None:
+                    r["rssi_raw"] = r["rssi"]
+                    r["rssi"] = round(st.smooth(addr, r["rssi"], now_mono), 1)
+                o = self.calib.obs(self.model.scanners[addr], p.id, r["rssi"]) if use_cal and r["rssi"] is not None else None
+                r["kalibrert"] = o is not None
+                if o is None and r["bermuda"] is not None:
+                    o = Obs(self.model.scanners[addr], r["bermuda"])
+                r["d"] = round(o.distance, 2) if o is not None else None
+                if o is not None:
+                    obs.append(o)
             st.raw = raw
             newest = min((r["age"] for r in raw.values()), default=None)
             off = self.calib.offset(p.id)

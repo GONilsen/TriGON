@@ -39,6 +39,12 @@ class Floor:
 class Obs:
     scanner: Scanner
     distance: float
+    other_floor_distance: float | None = None  # distance if the phone is NOT on the scanner's floor (floor attenuation removed)
+
+    def dist_for(self, floor_id: str) -> float:
+        if self.other_floor_distance is not None and self.scanner.floor != floor_id:
+            return self.other_floor_distance
+        return self.distance
 
 
 @dataclass
@@ -47,8 +53,8 @@ class Settings:
     max_distance: float = 15.0  # distances above this are ignored
     other_floor_weight: float = 0.5  # weight for scanners on other floors
     smoothing: float = 0.5  # 0 = no smoothing, close to 1 = heavy smoothing
-    floor_confirm: int = 2  # rounds a new floor must persist before switching
-    room_confirm: int = 2  # rounds a new room must persist before switching
+    floor_confirm: int = 3  # rounds a new floor must persist before switching
+    room_confirm: int = 4  # rounds a new room must persist before switching
     snap_distance: float = 3.0  # a nearest scanner closer than this may pull the room to itself
     snap_margin: float = 1.0  # ... when the point is this close to the scanner's room
     fp_k: int = 3  # number of fingerprint neighbours
@@ -137,10 +143,11 @@ def solve(obs: list[Obs], z: float, floor_id: str, s: Settings) -> tuple[float, 
     """
     pts = []
     for o in obs:
-        w = 1.0 / max(o.distance, 1.0) ** 2
+        d = o.dist_for(floor_id)
+        w = 1.0 / max(d, 1.0) ** 2
         if o.scanner.floor != floor_id:
             w *= s.other_floor_weight
-        pts.append((o.scanner.x, o.scanner.y, o.scanner.z, o.distance, w))
+        pts.append((o.scanner.x, o.scanner.y, o.scanner.z, d, w))
 
     # Start at the weighted centroid of scanners on the same floor (otherwise all)
     same = [p for p, o in zip(pts, obs) if o.scanner.floor == floor_id] or pts

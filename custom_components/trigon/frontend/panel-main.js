@@ -39,7 +39,7 @@ const EN = {
   "Lista viser Bluetooth-proxyer i HA som ikke er plassert ennå.": "The list shows Bluetooth proxies in HA that have not been placed yet.",
   "Vis oppsettet som YAML": "Show the setup as YAML", "Sikkerhetskopi": "Backup",
   "Ta vare på dette som sikkerhetskopi av oppsettet.": "Keep this as a backup of the setup.",
-  "Etasjer": "Floors", "Dashbord": "Dashboard", "Hvor er vi": "Where are we", "Lag «Hvor er vi»-dashbord": "Create «Where are we» dashboard",
+  "Etasjer": "Floors", "Etasje dB": "Floor dB", "Ekstra tap gjennom etasjeskillet": "Extra loss through the floor slab", "Dashbord": "Dashboard", "Hvor er vi": "Where are we", "Lag «Hvor er vi»-dashbord": "Create «Where are we» dashboard",
   "Lag et ferdig dashbord «Hvor er vi» med kartet og alle personer, synlig for alle brukere i sidemenyen. Kortet heter «TriGON» i kortvelgeren hvis du heller vil legge det inn selv.": "Create a ready-made «Where are we» dashboard with the map and everyone, visible to all users in the sidebar. The card is called «TriGON» in the card picker if you would rather add it yourself.",
   "Dashbordet «Hvor er vi» finnes allerede. Vil du erstatte innholdet med standardoppsettet?": "The «Where are we» dashboard already exists. Replace its content with the default layout?", "Alle etasjer": "All floors", "Zoom inn": "Zoom in", "Zoom ut": "Zoom out", "Hele etasjen": "Whole floor", "Gulvnivå": "Floor level", "Legg til etasje": "Add floor", "Ingen etasjer ennå.": "No floors yet.",
   "Gulvnivå er høyden på gulvet i meter i forhold til hovedetasjen (f.eks. 0, 2,75 og −2,65).": "Floor level is the height of the floor in metres relative to the main floor (e.g. 0, 2.75 and −2.65).",
@@ -945,11 +945,11 @@ class TrigonPanel extends HTMLElement {
     let res = "";
     if (fit && fit.kvalitet) {
       const q = fit.kvalitet;
-      const pxr = Object.entries(kal.proxyer || {}).map(([a, p]) => `<tr><td>${esc(p.navn)}</td><td class="t">${p.A}</td><td class="t">${p.n}</td><td class="t">${p.punkter}</td><td class="t">${p.rms_db}</td></tr>`).join("");
+      const pxr = Object.entries(kal.proxyer || {}).map(([a, p]) => `<tr><td>${esc(p.navn)}</td><td class="t">${p.A}</td><td class="t">${p.n}</td><td class="t">${p.F ?? 0}</td><td class="t">${p.punkter}</td><td class="t">${p.rms_db}</td></tr>`).join("");
       const prr = Object.entries(kal.personer || {}).map(([id, p]) => `${esc((pers.find((x) => x.id === id) || { navn: id }).navn)}: ${p.referanse ? "referanse" : `${p.offset > 0 ? "+" : ""}${p.offset} dB`}`).join(" · ");
       res = `<div class="kort"><h3>Resultat</h3>
         <div class="melding">Treffer riktig rom i <b>${q.treff_pct ?? "–"} %</b> av punktene, snittavvik <b>${q.snitt_feil_m ?? "–"} m</b>.</div>
-        <details style="margin-top:8px"><summary>Per proxy</summary><table><tr><th>Proxy</th><th class="t">A (1 m)</th><th class="t">n</th><th class="t">Punkt</th><th class="t">Avvik dB</th></tr>${pxr}</table></details>
+        <details style="margin-top:8px"><summary>Per proxy</summary><table><tr><th>Proxy</th><th class="t">A (1 m)</th><th class="t">n</th><th class="t" title="Ekstra tap gjennom etasjeskillet">Etasje dB</th><th class="t">Punkt</th><th class="t">Avvik dB</th></tr>${pxr}</table></details>
         <div class="sm" style="margin-top:6px">Telefoner: ${prr}</div></div>`;
     }
     const punktliste = kal.points.slice().reverse().map((p) => {
