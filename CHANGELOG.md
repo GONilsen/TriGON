@@ -7,6 +7,8 @@
 - Live view: dark "glow" map with glowing walls and pulsing occupied rooms, a radar pulse around each person, trails for the last minutes, and animated signal lines from the proxies that hear the selected person.
 - People show their Home Assistant profile picture when the person can be matched (via the BLE tracker or name).
 - Background plans are clipped to the rooms outside the Edit tab, so nothing sticks out.
+- Glow style: the dark background covers the whole card instead of a box around each floor; no plates around floors in 3D.
+- 3D zoom: +/−/reset buttons, mouse wheel, pinch with two fingers (two fingers also move the house), shift- or right-drag to move with a mouse.
 - 3D view: all floors stacked at an angle in one scene (Live chip «3D», card `view: 3d` or the 3D chip). Drag sideways to turn the house, with a mouse also up/down to tilt; double-click resets.
 - New dashboard card `custom:trigon-card` (loaded automatically, with a visual editor) and a one-click «Where are we» dashboard from the panel.
 - `sensor.trigon_map` has new attributes `plans` (background placement) and `person` per person.

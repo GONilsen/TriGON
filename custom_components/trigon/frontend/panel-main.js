@@ -277,7 +277,12 @@ class TrigonPanel extends HTMLElement {
         @keyframes flyt { to { stroke-dashoffset: -.32; } }
         .sig { font-size: .22px; font-weight: 700; text-anchor: middle; dominant-baseline: central; paint-order: stroke;
           stroke: var(--card-background-color, #fff); stroke-width: .06px; }
-        .kart.glod svg { background: radial-gradient(120% 90% at 30% 15%, #16263f 0%, #0c1527 55%, #070c17 100%); border-radius: 14px; }
+        .kort.glodkort { background: radial-gradient(120% 90% at 30% 10%, #16263f 0%, #0c1527 55%, #070c17 100%); border-color: rgba(127, 239, 255, .18); }
+        .glodkort .chip { color: #D6E8FF; border-color: rgba(127, 239, 255, .3); }
+        .glodkort .chip.aktiv { background: rgba(127, 239, 255, .22); border-color: #7FEFFF; color: #fff; }
+        .glodkort .etasje h3 { color: #A9D4FF; }
+        .glodkort .zoom button { background: rgba(11, 19, 36, .8); color: #D6E8FF; border-color: rgba(127, 239, 255, .35); }
+        .glodkort .scene { background: none; }
         .glod .rf { fill: rgba(127, 239, 255, .035); stroke: #7FEFFF; stroke-opacity: .5; stroke-width: .05; }
         .glod .rf.opptatt { fill: rgba(127, 239, 255, .16); stroke-opacity: .95; animation: puls 3.2s ease-in-out infinite; }
         @keyframes puls { 0%, 100% { fill-opacity: .55; } 50% { fill-opacity: 1; } }
@@ -290,14 +295,16 @@ class TrigonPanel extends HTMLElement {
         .glod .null line, .glod .null path { opacity: .6; }
         @media (prefers-reduced-motion: reduce) { .ring, .straale, .glod .rf.opptatt { animation: none; } .ring { opacity: 0; } }
         .kart.tre-d { display: block; }
-        .scene { perspective: 1800px; perspective-origin: 50% 20%; display: grid; place-items: center; overflow: hidden;
+        .scene .zoom { top: 8px; right: 8px; }
+        .scene .zoom button { background: rgba(11, 19, 36, .8); color: #D6E8FF; border-color: rgba(127, 239, 255, .35); }
+        .scene { position: relative; perspective: 1800px; perspective-origin: 50% 20%; display: grid; place-items: center; overflow: hidden;
           touch-action: pan-y; cursor: grab; user-select: none; -webkit-user-select: none; padding: 20px 0;
           background: radial-gradient(90% 70% at 50% 40%, #16263f 0%, #0b1324 60%, #060a14 100%); border-radius: 14px; }
         .stabel { position: relative; width: min(78%, 720px); transform-style: preserve-3d; transition: transform .5s ease; }
         .stabel.drar { transition: none; }
         .tre-d .etasje { position: absolute; inset: 0; transform-style: preserve-3d; transition: transform .5s ease; }
-        .tre-d .etasje svg { background: rgba(14, 26, 46, .55) !important; border-radius: 10px;
-          box-shadow: 0 0 0 1px rgba(127, 239, 255, .35), 0 0 24px rgba(127, 239, 255, .12); }
+        .tre-d .etasje svg { background: none !important; box-shadow: none; overflow: visible; }
+        .tre-d .rf { fill: rgba(127, 239, 255, .07); }
         .tre-d .etasje h3 { position: absolute; left: 8px; top: -22px; margin: 0; color: #A9D4FF; text-shadow: 0 0 6px rgba(127, 239, 255, .6); }
         .ikke-live .pers { pointer-events: none; opacity: .7; }
         .rf { fill: color-mix(in srgb, var(--primary-text-color) 4%, transparent);
@@ -390,6 +397,7 @@ class TrigonPanel extends HTMLElement {
     this._tegnEtasjevalg(g.etasjer, valgt);
     kart.classList.toggle("ikke-live", this._fane !== "live");
     kart.classList.toggle("glod", this._fane === "live");
+    kart.closest(".kort").classList.toggle("glodkort", this._fane === "live");
     const tre = this._fane === "live" && valgt === "3d";
     kart.classList.toggle("tre-d", tre);
     // 3D: felles utsnitt for alle etasjer, så de ligger rett over hverandre
@@ -553,9 +561,18 @@ class TrigonPanel extends HTMLElement {
     const lavest = Number(etasjer[0].dataset.niva);
     for (const d of etasjer) stabel.appendChild(d);
     scene.appendChild(stabel);
+    const knapper = document.createElement("div");
+    knapper.className = "zoom";
+    knapper.innerHTML = `<button data-z="inn" title="Zoom">+</button><button data-z="ut" title="Zoom">−</button><button data-z="hel" title="Reset">⤢</button>`;
+    scene.appendChild(knapper);
     kart.appendChild(scene);
-    const v = this._3d || (this._3d = { rot: -32, tilt: 58 });
-    const sett = () => { stabel.style.transform = `rotateX(${v.tilt}deg) rotateZ(${v.rot}deg)`; };
+    const STD = { rot: -32, tilt: 58, z: 1, px: 0, py: 0 };
+    const v = this._3d || (this._3d = { ...STD });
+    for (const k of Object.keys(STD)) if (v[k] == null) v[k] = STD[k];
+    const sett = () => {
+      v.z = Math.min(Math.max(v.z, 0.6), 4);
+      stabel.style.transform = `translate(${v.px}px, ${v.py}px) scale(${v.z}) rotateX(${v.tilt}deg) rotateZ(${v.rot}deg)`;
+    };
     const plasser = () => {
       const ppm = stabel.clientWidth / W;
       // Etasjehøyden er overdrevet litt så etasjene er lette å skille
@@ -565,25 +582,82 @@ class TrigonPanel extends HTMLElement {
     };
     sett();
     requestAnimationFrame(plasser);
-    if (this._3dObs) this._3dObs.disconnect();
-    this._3dObs = new ResizeObserver(() => plasser());
-    this._3dObs.observe(stabel);
-    let dra = null;
-    scene.addEventListener("pointerdown", (ev) => { dra = { x: ev.clientX, y: ev.clientY, rot: v.rot, tilt: v.tilt, mus: ev.pointerType === "mouse", flyttet: false, id: ev.pointerId }; });
+    if (this._obs3d) this._obs3d.disconnect();
+    this._obs3d = new ResizeObserver(() => plasser());
+    this._obs3d.observe(stabel);
+    // Zoom rundt et punkt i scenen (skjermkoordinater)
+    const zoomRundt = (cx, cy, f) => {
+      const r = scene.getBoundingClientRect();
+      const ox = cx - (r.left + r.width / 2), oy = cy - (r.top + r.height / 2);
+      const z0 = v.z;
+      v.z = Math.min(Math.max(v.z * f, 0.6), 4);
+      const k = v.z / z0;
+      v.px = ox - (ox - v.px) * k; v.py = oy - (oy - v.py) * k;
+      if (v.z <= 1.001) { v.px *= 0.5; v.py *= 0.5; }
+      sett();
+    };
+    knapper.addEventListener("pointerdown", (ev) => ev.stopPropagation());
+    knapper.addEventListener("click", (ev) => {
+      const bt = ev.target.closest("button"); if (!bt) return;
+      ev.stopPropagation();
+      const r = scene.getBoundingClientRect();
+      if (bt.dataset.z === "hel") Object.assign(v, STD);
+      else { zoomRundt(r.left + r.width / 2, r.top + r.height / 2, bt.dataset.z === "inn" ? 1.4 : 1 / 1.4); return; }
+      sett();
+    });
+    scene.addEventListener("wheel", (ev) => { ev.preventDefault(); zoomRundt(ev.clientX, ev.clientY, Math.exp(-ev.deltaY * (ev.deltaMode ? 0.05 : 0.002))); }, { passive: false });
+    // Én finger/mus: snu (mus opp/ned: vippe; shift eller høyre knapp: flytte). To fingre: knip for zoom, flytt for å panorere.
+    const pek = new Map();
+    let dra = null, knip = null;
+    const midt = () => { const [a, c] = [...pek.values()]; return [(a.x + c.x) / 2, (a.y + c.y) / 2, Math.hypot(a.x - c.x, a.y - c.y)]; };
+    scene.addEventListener("contextmenu", (ev) => ev.preventDefault());
+    scene.addEventListener("pointerdown", (ev) => {
+      pek.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+      if (pek.size === 2) {
+        dra = null;
+        const [mx, my, d] = midt();
+        knip = { d0: Math.max(d, 1), z0: v.z, mx, my, px: v.px, py: v.py };
+        for (const id of pek.keys()) { try { scene.setPointerCapture(id); } catch (e) { /* ignorer */ } }
+        scene.style.touchAction = "none";
+      } else if (pek.size === 1) {
+        dra = { x: ev.clientX, y: ev.clientY, rot: v.rot, tilt: v.tilt, px: v.px, py: v.py, mus: ev.pointerType === "mouse",
+          flytt: ev.shiftKey || ev.button === 2, flyttet: false, id: ev.pointerId };
+      }
+    });
     scene.addEventListener("pointermove", (ev) => {
+      if (!pek.has(ev.pointerId)) return;
+      pek.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+      if (knip && pek.size >= 2) {
+        const [mx, my, d] = midt();
+        const r = scene.getBoundingClientRect();
+        const ox = knip.mx - (r.left + r.width / 2), oy = knip.my - (r.top + r.height / 2);
+        v.z = Math.min(Math.max(knip.z0 * d / knip.d0, 0.6), 4);
+        const k = v.z / knip.z0;
+        v.px = ox - (ox - knip.px) * k + (mx - knip.mx); v.py = oy - (oy - knip.py) * k + (my - knip.my);
+        stabel.classList.add("drar"); sett(); this._stopp3d = Date.now();
+        return;
+      }
       if (!dra || dra.id !== ev.pointerId) return;
       const dx = ev.clientX - dra.x, dy = ev.clientY - dra.y;
       if (!dra.flyttet && Math.hypot(dx, dy) < 6) return;
       if (!dra.flyttet) { dra.flyttet = true; try { scene.setPointerCapture(ev.pointerId); } catch (e) { /* ignorer */ } }
-      v.rot = dra.rot + dx * 0.4;
-      if (dra.mus) v.tilt = Math.min(Math.max(dra.tilt - dy * 0.3, 15), 75);
+      if (dra.flytt) { v.px = dra.px + dx; v.py = dra.py + dy; }
+      else {
+        v.rot = dra.rot + dx * 0.4;
+        if (dra.mus) v.tilt = Math.min(Math.max(dra.tilt - dy * 0.3, 15), 75);
+      }
       stabel.classList.add("drar"); sett();
     });
-    const slipp = () => { if (dra && dra.flyttet) this._stoppKlikk = Date.now(); dra = null; stabel.classList.remove("drar"); };
+    const slipp = (ev) => {
+      pek.delete(ev.pointerId);
+      if (knip && pek.size < 2) { knip = null; this._stopp3d = Date.now(); scene.style.touchAction = ""; }
+      if (dra && dra.id === ev.pointerId) { if (dra.flyttet) this._stopp3d = Date.now(); dra = null; }
+      if (!pek.size) stabel.classList.remove("drar");
+    };
     scene.addEventListener("pointerup", slipp);
     scene.addEventListener("pointercancel", slipp);
-    scene.addEventListener("click", (ev) => { if (this._stoppKlikk && Date.now() - this._stoppKlikk < 350) { ev.stopPropagation(); ev.preventDefault(); } }, true);
-    scene.addEventListener("dblclick", () => { v.rot = -32; v.tilt = 58; sett(); });
+    scene.addEventListener("click", (ev) => { if (this._stopp3d && Date.now() - this._stopp3d < 350) { ev.stopPropagation(); ev.preventDefault(); } }, true);
+    scene.addEventListener("dblclick", () => { Object.assign(v, STD); sett(); });
   }
 
   _klem(v, g) {
