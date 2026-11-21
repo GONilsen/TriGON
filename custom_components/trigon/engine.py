@@ -73,21 +73,44 @@ class Fingerprint:
 
 
 FP_MISSING = -100.0
+FP_WEAK = -88.0  # a scanner missing on one side only counts by how much stronger than this it is on the other
+FP_MAX_SHIFT = 15.0  # dB: largest level difference between phone and fingerprint that is evened out
+
+
+def fp_match(a: dict[str, float], b: dict[str, float]) -> tuple[float, float]:
+    """Compare two RSSI patterns. Returns (distance in dB, level shift a−b).
+
+    Phones send with different (and varying) power, so a common level shift is removed first:
+    it is the pattern across the scanners that identifies a place. Weak scanners that only one
+    side heard cost little (they come and go); a strong scanner missing on one side costs a lot.
+    """
+    common = [k for k in a if k in b]
+    if len(common) >= 3:
+        shift = max(-FP_MAX_SHIFT, min(FP_MAX_SHIFT, sum(a[k] - b[k] for k in common) / len(common)))
+    else:
+        shift = 0.0
+    sq = [(a[k] - shift - b[k]) ** 2 for k in common]
+    for k in a:
+        if k not in b:
+            sq.append(max(0.0, a[k] - shift - FP_WEAK) ** 2)
+    for k in b:
+        if k not in a:
+            sq.append(max(0.0, b[k] - FP_WEAK) ** 2)
+    if not sq:
+        return 99.0, 0.0
+    return math.sqrt(sum(sq) / len(sq)), shift
 
 
 def fp_distance(a: dict[str, float], b: dict[str, float]) -> float:
-    keys = set(a) | set(b)
-    if not keys:
-        return 99.0
-    return math.sqrt(sum((a.get(k, FP_MISSING) - b.get(k, FP_MISSING)) ** 2 for k in keys) / len(keys))
+    return fp_match(a, b)[0]
 
 
 def knn(live: dict[str, float], fps: list[Fingerprint], k: int = 3):
-    """Return [(weight, fingerprint)] for the k nearest, and the best distance (dB)."""
+    """Return [(weight, fingerprint)] for the k nearest, the best distance (dB) and the best match's level shift."""
     if not live or not fps:
-        return [], 99.0
-    nb = sorted(((fp_distance(live, f.rssi), f) for f in fps), key=lambda t: t[0])[:k]
-    return [(1.0 / (d + 1.0), f) for d, f in nb], nb[0][0]
+        return [], 99.0, 0.0
+    nb = sorted(((*fp_match(live, f.rssi), f) for f in fps), key=lambda t: t[0])[:k]
+    return [(1.0 / (d + 1.0), f) for d, _, f in nb], nb[0][0], nb[0][1]
 
 
 @dataclass
@@ -100,6 +123,7 @@ class Result:
     nearest: Scanner
     used: int
     fp_weight: float = 0.0  # 0 = trilateration only, 1 = full fingerprint weight
+    level_shift: float = 0.0  # dB the phone is stronger than its fingerprints right now (0 without a good match)
 
 
 def point_in_polygon(x: float, y: float, poly: list[tuple[float, float]]) -> bool:
@@ -226,7 +250,7 @@ class Tracker:
         nearest = min(obs, key=lambda o: o.distance)
 
         # Fingerprints: neighbours and a weight based on how well the best neighbour matches
-        nb, best = knn(live_rssi or {}, fingerprints or [], s.fp_k)
+        nb, best, shift = knn(live_rssi or {}, fingerprints or [], s.fp_k)
         wk = 0.0 if not nb else max(0.0, min(1.0, (s.fp_bad - best) / (s.fp_bad - s.fp_good)))
         fp_floor = None
         if wk > 0:
@@ -349,7 +373,8 @@ class Tracker:
                 px, py = ix, iy
             x, y = px, py
 
-        return Result(fl.id, x, y, max(rms, 0.5), self.room, nearest.scanner, len(obs), round(wk, 2))
+        return Result(fl.id, x, y, max(rms, 0.5), self.room, nearest.scanner, len(obs), round(wk, 2),
+                      round(shift, 1) if wk >= 0.5 else 0.0)
 
     def reset(self):
         self.__init__()

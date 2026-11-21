@@ -6,6 +6,7 @@
 - RSSI is smoothed per proxy between rounds, so a single noisy reading no longer moves you.
 - Stricter switching: a new floor must hold for 3 rounds and a new room for 4 (was 2/2). In a simulation with the real calibration points this halved room flicker for someone standing still and raised the correct floor from 84 % to over 90 %.
 - The dot is always drawn inside the room that is shown (no more «Anine rom» with the dot in the next room), and good fingerprint matches weigh more on the position (blend 0.5 → 0.7).
+- Fingerprints compare the pattern across proxies, not the absolute level: a common level shift is removed (phones send with varying power), and weak proxies heard on only one side no longer count as −100 dB. Each phone's current level is learnt from good matches and also corrects its distances.
 - Recalculate the calibration after updating («Compute calibration») to fit the new floor attenuation.
 
 ## 0.9.3

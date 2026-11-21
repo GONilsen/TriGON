@@ -86,6 +86,8 @@ def ha_person_for(hass: HomeAssistant, bermuda: str, name: str) -> str | None:
 
 
 RSSI_SMOOTHING = 0.7  # share of the previous value (each round is ~5 s)
+LEVEL_RATE = 0.15  # how fast the phone's level is learnt from good fingerprint matches
+LEVEL_MAX = 15.0
 
 
 class PersonState:
@@ -97,6 +99,7 @@ class PersonState:
         self.last_heard_mono: float | None = None
         self.raw: dict[str, dict] = {}
         self.filt: dict[str, tuple[float, float]] = {}  # scanner -> (smoothed RSSI, time)
+        self.level = 0.0  # learnt dB the phone is currently stronger than calibrated (from fingerprint matches)
 
     def smooth(self, addr: str, rssi: float, now: float) -> float:
         """Exponential smoothing of RSSI per scanner between rounds (reset after a 20 s gap)."""
@@ -221,7 +224,8 @@ class Coordinator:
                 if r["rssi"] is not None:
                     r["rssi_raw"] = r["rssi"]
                     r["rssi"] = round(st.smooth(addr, r["rssi"], now_mono), 1)
-                o = self.calib.obs(self.model.scanners[addr], p.id, r["rssi"]) if use_cal and r["rssi"] is not None else None
+                o = (self.calib.obs(self.model.scanners[addr], p.id, r["rssi"] - st.level)
+                     if use_cal and r["rssi"] is not None else None)
                 r["kalibrert"] = o is not None
                 if o is None and r["bermuda"] is not None:
                     o = Obs(self.model.scanners[addr], r["bermuda"])
@@ -231,8 +235,10 @@ class Coordinator:
             st.raw = raw
             newest = min((r["age"] for r in raw.values()), default=None)
             off = self.calib.offset(p.id)
-            live = {a: r["rssi"] - off for a, r in raw.items() if r["rssi"] is not None} if fps else None
+            live = {a: r["rssi"] - off - st.level for a, r in raw.items() if r["rssi"] is not None} if fps else None
             res = st.tracker.update(obs, self.model.floors, self.model.settings, dev.get("floor_id"), live, fps)
+            if res is not None and res.level_shift:
+                st.level = max(-LEVEL_MAX, min(LEVEL_MAX, st.level + LEVEL_RATE * res.level_shift))
             if res is not None:
                 st.result = res
                 st.home = True
@@ -281,6 +287,7 @@ class Coordinator:
                 "avvik": round(r.accuracy, 2) if r else None,
                 "naermeste": r.nearest.name if r else None,
                 "fingeravtrykk": r.fp_weight if r else None,
+                "niva_db": round(st.level, 1),
                 "sist_hort": st.last_heard.isoformat() if st.last_heard else None,
                 "raw": st.raw,
             }
