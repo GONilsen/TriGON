@@ -96,7 +96,7 @@ class TrigonCard extends HTMLElement {
         .stabel.drar { transition: none; }
         .tre-d .etasje { position: absolute; inset: 0; margin: 0 !important; transform-style: preserve-3d; transition: transform .5s ease; }
         .tre-d .etasje svg { background: none !important; box-shadow: none; overflow: visible; }
-        .tre-d .rf { fill: rgba(127, 239, 255, .07); }
+        .tre-d .rf { fill: rgba(127, 239, 255, .07); stroke-width: .07; }
         .tre-d .etasje h3 { position: absolute; left: 8px; top: -22px; margin: 0; color: #A9D4FF; text-shadow: 0 0 6px rgba(127, 239, 255, .6); }
       </style>
       <ha-card><div class="tittel" hidden></div><div class="personer"></div><div class="etasjer"></div><div class="kart"></div></ha-card>`;
@@ -249,7 +249,7 @@ class TrigonCard extends HTMLElement {
         const pg = document.createElementNS(NS, "polygon");
         pg.setAttribute("points", r.polygon.map((p) => p.join(",")).join(" "));
         pg.setAttribute("class", "rf");
-        if (glod) pg.setAttribute("filter", "url(#tg-glod)");
+        if (glod && !felles) pg.setAttribute("filter", "url(#tg-glod)");
         lag.rom.appendChild(pg);
         romEl[r.id] = pg;
         const rx = r.polygon.map((p) => p[0]), ry = r.polygon.map((p) => p[1]);
@@ -460,7 +460,7 @@ class TrigonCard extends HTMLElement {
     }
     const dot = document.createElementNS(NS, "circle");
     dot.setAttribute("r", 0.32); dot.setAttribute("fill", p.farge); dot.setAttribute("stroke", "#fff"); dot.setAttribute("stroke-width", 0.05);
-    if (this._c.style !== "theme") dot.setAttribute("filter", "url(#tg-glod)");
+    if (this._c.style !== "theme" && this._valgt !== "3d") dot.setAttribute("filter", "url(#tg-glod)");
     g.appendChild(dot);
     if (p.bilde) {
       const im = document.createElementNS(NS, "image");

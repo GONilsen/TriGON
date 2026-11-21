@@ -304,7 +304,8 @@ class TrigonPanel extends HTMLElement {
         .stabel.drar { transition: none; }
         .tre-d .etasje { position: absolute; inset: 0; transform-style: preserve-3d; transition: transform .5s ease; }
         .tre-d .etasje svg { background: none !important; box-shadow: none; overflow: visible; }
-        .tre-d .rf { fill: rgba(127, 239, 255, .07); }
+        .tre-d .rf { fill: rgba(127, 239, 255, .07); stroke-width: .07; }
+        .tre-d .pers circle:not(.halo):not(.ring) { stroke-width: .07; }
         .tre-d .etasje h3 { position: absolute; left: 8px; top: -22px; margin: 0; color: #A9D4FF; text-shadow: 0 0 6px rgba(127, 239, 255, .6); }
         .ikke-live .pers { pointer-events: none; opacity: .7; }
         .rf { fill: color-mix(in srgb, var(--primary-text-color) 4%, transparent);
@@ -464,7 +465,7 @@ class TrigonPanel extends HTMLElement {
         const pg = document.createElementNS(NS, "polygon");
         pg.setAttribute("points", r.polygon.map((p) => p.join(",")).join(" "));
         pg.setAttribute("class", "rf" + (red && this._valg && this._valg.type === "rom" && this._valg.id === r.id ? " valgtrom" : ""));
-        if (this._fane === "live") pg.setAttribute("filter", "url(#trigon-glod)");
+        if (this._fane === "live" && !tre) pg.setAttribute("filter", "url(#trigon-glod)");
         if (red) pg.addEventListener("click", (ev) => { if (this._nyttRom || this._plasser) return; ev.stopPropagation(); this._velg({ type: "rom", id: r.id }); });
         lag.rom.appendChild(pg);
         romEl[r.id] = pg;
@@ -827,7 +828,7 @@ class TrigonPanel extends HTMLElement {
           });
           const dot = document.createElementNS(NS, "circle");
           dot.setAttribute("r", 0.32); dot.setAttribute("fill", p.farge); dot.setAttribute("stroke", "#fff"); dot.setAttribute("stroke-width", 0.05);
-          if (this._fane === "live") dot.setAttribute("filter", "url(#trigon-glod)");
+          if (this._fane === "live" && !this.shadowRoot.querySelector(".kart.tre-d")) dot.setAttribute("filter", "url(#trigon-glod)");
           g.append(halo, ...ringer, dot);
           const bilde = this._bilde(p);
           if (bilde) {
