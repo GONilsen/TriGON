@@ -10,12 +10,12 @@ const BILDER = {}; // floor -> {v, url} (shared by all cards)
 const TEKST = {
   nb: { away: "Ikke hjemme", unknown: "ukjent", all: "Alle", noMap: "Fant ikke TriGON-kartet. Er TriGON satt opp?",
     noFloors: "Ingen etasjer å vise", title: "Hvor er vi", entity: "Kart-sensor (finnes automatisk)", ttl: "Tittel",
-    view: "Visning", tabs: "Én etasje om gangen", stacked: "Alle etasjer under hverandre", floor: "Startetasje (id, valgfritt)",
+    view: "Visning", tabs: "Én etasje om gangen", stacked: "Alle etasjer under hverandre", d3: "3D (etasjene stablet)", floor: "Startetasje (id, valgfritt)",
     style: "Stil", glow: "Glød (mørkt kart)", theme: "Følg temaet", show_people: "Vis personer øverst",
     show_background: "Vis plantegning", show_scanners: "Vis proxyer", trails: "Vis spor" },
   en: { away: "Not home", unknown: "unknown", all: "All", noMap: "TriGON map not found. Is TriGON set up?",
     noFloors: "No floors to show", title: "Where are we", entity: "Map sensor (found automatically)", ttl: "Title",
-    view: "View", tabs: "One floor at a time", stacked: "All floors stacked", floor: "Start floor (id, optional)",
+    view: "View", tabs: "One floor at a time", stacked: "All floors stacked", d3: "3D (floors stacked)", floor: "Start floor (id, optional)",
     style: "Style", glow: "Glow (dark map)", theme: "Follow theme", show_people: "Show people on top",
     show_background: "Show floor plan", show_scanners: "Show proxies", trails: "Show trails" },
 };
@@ -80,6 +80,15 @@ class TrigonCard extends HTMLElement {
         .glod image.plan { filter: invert(1) hue-rotate(180deg); }
         .tom { color: var(--secondary-text-color); font-size: 13px; padding: 8px 2px; }
         @media (prefers-reduced-motion: reduce) { .ring, .glod .rf.opptatt { animation: none; } .ring { opacity: 0; } }
+        .scene { perspective: 1800px; perspective-origin: 50% 20%; display: grid; place-items: center; overflow: hidden;
+          touch-action: pan-y; cursor: grab; user-select: none; -webkit-user-select: none; padding: 20px 0; border-radius: 14px;
+          background: radial-gradient(90% 70% at 50% 40%, #16263f 0%, #0b1324 60%, #060a14 100%); }
+        .stabel { position: relative; width: min(78%, 720px); transform-style: preserve-3d; transition: transform .5s ease; }
+        .stabel.drar { transition: none; }
+        .tre-d .etasje { position: absolute; inset: 0; margin: 0 !important; transform-style: preserve-3d; transition: transform .5s ease; }
+        .tre-d .etasje svg { background: rgba(14, 26, 46, .55) !important; border-radius: 10px;
+          box-shadow: 0 0 0 1px rgba(127, 239, 255, .35), 0 0 24px rgba(127, 239, 255, .12); }
+        .tre-d .etasje h3 { position: absolute; left: 8px; top: -22px; margin: 0; color: #A9D4FF; text-shadow: 0 0 6px rgba(127, 239, 255, .6); }
       </style>
       <ha-card><div class="tittel" hidden></div><div class="personer"></div><div class="etasjer"></div><div class="kart"></div></ha-card>`;
     root.querySelector("ha-card").classList.toggle("glod", this._c.style !== "theme");
@@ -115,7 +124,8 @@ class TrigonCard extends HTMLElement {
     });
     this._pers = pers;
     this._oppdaterSpor(pers);
-    if (this._c.view !== "stacked" && !this._valgtBruker) {
+    if (this._c.view === "3d" && !this._valgtBruker) this._valgt = "3d";
+    else if (this._c.view !== "stacked" && !this._valgtBruker) {
       // Følg etasjen der flest er hjemme, til brukeren velger selv
       const ant = this._antall(pers);
       const best = Object.entries(ant).sort((x, y) => y[1] - x[1])[0];
@@ -159,7 +169,7 @@ class TrigonCard extends HTMLElement {
     const el = this.shadowRoot.querySelector(".etasjer");
     if (this._c.view === "stacked" || this._etasjer.length < 2) { el.innerHTML = ""; return; }
     const ant = this._antall(pers);
-    const html = this._etasjer.map((e) => `<button class="chip ${e.id === this._valgt ? "aktiv" : ""}" data-e="${esc(e.id)}">${esc(e.name)}<span class="ant">${ant[e.id] || ""}</span></button>`).join("");
+    const html = `<button class="chip ${this._valgt === "3d" ? "aktiv" : ""}" data-e="3d">3D</button>` + this._etasjer.map((e) => `<button class="chip ${e.id === this._valgt ? "aktiv" : ""}" data-e="${esc(e.id)}">${esc(e.name)}<span class="ant">${ant[e.id] || ""}</span></button>`).join("");
     if (html === this._valgHtml) return;
     this._valgHtml = html;
     el.innerHTML = html;
@@ -173,19 +183,31 @@ class TrigonCard extends HTMLElement {
     kart.innerHTML = "";
     this._svg = {};
     let etasjer = this._etasjer;
-    if (this._c.view !== "stacked") etasjer = etasjer.filter((e) => e.id === this._valgt);
+    const tre = this._valgt === "3d" && etasjer.length > 1;
+    if (this._c.view !== "stacked" && !tre) etasjer = etasjer.filter((e) => e.id === this._valgt);
+    let felles = null;
+    if (tre) {
+      const alle = etasjer.flatMap((e) => (e.rooms || []).flatMap((r) => r.polygon));
+      if (alle.length) {
+        const xs = alle.map((p) => p[0]), ys = alle.map((p) => p[1]);
+        felles = { x0: Math.min(...xs) - 0.4, x1: Math.max(...xs) + 0.4, y0: Math.min(...ys) - 0.4, y1: Math.max(...ys) + 0.4 };
+      }
+    }
+    kart.classList.toggle("tre-d", !!felles);
     for (const e of etasjer) {
       const rom = e.rooms || [];
       const pts = rom.flatMap((r) => r.polygon);
-      const plan = this._c.show_background && this._planer[e.id] && BILDER[e.id] && BILDER[e.id].url ? this._planer[e.id] : null;
+      const plan = !felles && this._c.show_background && this._planer[e.id] && BILDER[e.id] && BILDER[e.id].url ? this._planer[e.id] : null;
       if (!pts.length && !plan) continue;
       const pad = 0.5;
       const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
       let x0 = Math.min(...xs) - pad, x1 = Math.max(...xs) + pad, y0 = Math.min(...ys) - pad, y1 = Math.max(...ys) + pad;
       if (!pts.length) [x0, y0, x1, y1] = [plan.x, plan.y, plan.x + plan.w, plan.y + plan.h];
+      if (felles) ({ x0, x1, y0, y1 } = felles);
       const div = document.createElement("div");
       div.className = "etasje";
-      if (this._c.view === "stacked" || this._etasjer.length < 2) div.innerHTML = `<h3>${esc(e.name)}</h3>`;
+      div.dataset.niva = e.level;
+      if (felles || this._c.view === "stacked" || this._etasjer.length < 2) div.innerHTML = `<h3>${esc(e.name)}</h3>`;
       const svg = document.createElementNS(NS, "svg");
       svg.setAttribute("viewBox", `${x0} ${y0} ${x1 - x0} ${y1 - y0}`);
       svg.innerHTML = `<defs><filter id="tg-glod" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur in="SourceGraphic" stdDeviation="0.09" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
@@ -227,7 +249,52 @@ class TrigonCard extends HTMLElement {
       kart.appendChild(div);
       this._svg[e.id] = { svg, lag, romEl, el: {} };
     }
+    if (felles && Object.keys(this._svg).length) this._lag3d(kart, felles);
     if (!Object.keys(this._svg).length) kart.innerHTML = `<div class="tom">${this._t.noFloors}</div>`;
+  }
+
+  // Etasjene stablet skrått i 3D; dra sidelengs for å snu huset, dobbeltklikk for å nullstille
+  _lag3d(kart, b) {
+    const W = b.x1 - b.x0, H = b.y1 - b.y0;
+    const scene = document.createElement("div");
+    scene.className = "scene";
+    const stabel = document.createElement("div");
+    stabel.className = "stabel";
+    stabel.style.aspectRatio = `${W} / ${H}`;
+    const etasjer = [...kart.querySelectorAll(".etasje")].sort((a, c) => Number(a.dataset.niva) - Number(c.dataset.niva));
+    const lavest = Number(etasjer[0].dataset.niva);
+    for (const d of etasjer) stabel.appendChild(d);
+    scene.appendChild(stabel);
+    kart.appendChild(scene);
+    const v = this._3d || (this._3d = { rot: -32, tilt: 58 });
+    const sett = () => { stabel.style.transform = `rotateX(${v.tilt}deg) rotateZ(${v.rot}deg)`; };
+    const plasser = () => {
+      const ppm = stabel.clientWidth / W;
+      for (const d of etasjer) d.style.transform = `translateZ(${((Number(d.dataset.niva) - lavest) * 1.7 * ppm).toFixed(1)}px)`;
+      const topp = (Number(etasjer[etasjer.length - 1].dataset.niva) - lavest) * 1.7 * ppm;
+      scene.style.minHeight = `${Math.round(stabel.clientHeight * 0.75 + topp * 0.9 + 60)}px`;
+    };
+    sett();
+    requestAnimationFrame(plasser);
+    if (this._obs) this._obs.disconnect();
+    this._obs = new ResizeObserver(() => plasser());
+    this._obs.observe(stabel);
+    let dra = null;
+    scene.addEventListener("pointerdown", (ev) => { dra = { x: ev.clientX, y: ev.clientY, rot: v.rot, tilt: v.tilt, mus: ev.pointerType === "mouse", flyttet: false, id: ev.pointerId }; });
+    scene.addEventListener("pointermove", (ev) => {
+      if (!dra || dra.id !== ev.pointerId) return;
+      const dx = ev.clientX - dra.x, dy = ev.clientY - dra.y;
+      if (!dra.flyttet && Math.hypot(dx, dy) < 6) return;
+      if (!dra.flyttet) { dra.flyttet = true; try { scene.setPointerCapture(ev.pointerId); } catch (e) { /* ignore */ } }
+      v.rot = dra.rot + dx * 0.4;
+      if (dra.mus) v.tilt = Math.min(Math.max(dra.tilt - dy * 0.3, 15), 75);
+      stabel.classList.add("drar"); sett();
+    });
+    const slipp = () => { if (dra && dra.flyttet) this._stopp = Date.now(); dra = null; stabel.classList.remove("drar"); };
+    scene.addEventListener("pointerup", slipp);
+    scene.addEventListener("pointercancel", slipp);
+    scene.addEventListener("click", (ev) => { if (this._stopp && Date.now() - this._stopp < 350) { ev.stopPropagation(); ev.preventDefault(); } }, true);
+    scene.addEventListener("dblclick", () => { v.rot = -32; v.tilt = 58; sett(); });
   }
 
   _tegnPersoner(pers) {
@@ -246,7 +313,7 @@ class TrigonCard extends HTMLElement {
     liste.querySelectorAll(".p").forEach((el) => el.addEventListener("click", () => {
       // Hopp til personens etasje; trykk igjen for detaljer
       const f = el.dataset.f;
-      if (f && this._c.view !== "stacked" && f !== this._valgt) { this._valgt = f; this._valgtBruker = true; this._geoKey = null; this.hass = this._hass; return; }
+      if (f && this._c.view !== "stacked" && this._valgt !== "3d" && f !== this._valgt) { this._valgt = f; this._valgtBruker = true; this._geoKey = null; this.hass = this._hass; return; }
       this._info(el.dataset.e);
     }));
   }
@@ -337,7 +404,7 @@ class TrigonCard extends HTMLElement {
     return {
       schema: [
         { name: "title", selector: { text: {} } },
-        { name: "view", selector: { select: { mode: "dropdown", options: [{ value: "tabs", label: t.tabs }, { value: "stacked", label: t.stacked }] } } },
+        { name: "view", selector: { select: { mode: "dropdown", options: [{ value: "tabs", label: t.tabs }, { value: "stacked", label: t.stacked }, { value: "3d", label: t.d3 }] } } },
         { name: "style", selector: { select: { mode: "dropdown", options: [{ value: "glow", label: t.glow }, { value: "theme", label: t.theme }] } } },
         { type: "grid", name: "", schema: [
           { name: "show_people", selector: { boolean: {} } },

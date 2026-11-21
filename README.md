@@ -75,7 +75,7 @@ The quickest way: open **TriGON → Live** and press **Create «Where are we» d
 type: custom:trigon-card
 # all optional:
 title: Where are we
-view: tabs            # tabs (one floor at a time) or stacked
+view: tabs            # tabs (one floor at a time, with a 3D chip), stacked or 3d
 style: glow           # glow (dark map) or theme
 show_people: true
 show_background: true

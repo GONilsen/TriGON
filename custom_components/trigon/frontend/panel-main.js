@@ -289,6 +289,16 @@ class TrigonPanel extends HTMLElement {
         .glod .sig { stroke: #0c1527; }
         .glod .null line, .glod .null path { opacity: .6; }
         @media (prefers-reduced-motion: reduce) { .ring, .straale, .glod .rf.opptatt { animation: none; } .ring { opacity: 0; } }
+        .kart.tre-d { display: block; }
+        .scene { perspective: 1800px; perspective-origin: 50% 20%; display: grid; place-items: center; overflow: hidden;
+          touch-action: pan-y; cursor: grab; user-select: none; -webkit-user-select: none; padding: 20px 0;
+          background: radial-gradient(90% 70% at 50% 40%, #16263f 0%, #0b1324 60%, #060a14 100%); border-radius: 14px; }
+        .stabel { position: relative; width: min(78%, 720px); transform-style: preserve-3d; transition: transform .5s ease; }
+        .stabel.drar { transition: none; }
+        .tre-d .etasje { position: absolute; inset: 0; transform-style: preserve-3d; transition: transform .5s ease; }
+        .tre-d .etasje svg { background: rgba(14, 26, 46, .55) !important; border-radius: 10px;
+          box-shadow: 0 0 0 1px rgba(127, 239, 255, .35), 0 0 24px rgba(127, 239, 255, .12); }
+        .tre-d .etasje h3 { position: absolute; left: 8px; top: -22px; margin: 0; color: #A9D4FF; text-shadow: 0 0 6px rgba(127, 239, 255, .6); }
         .ikke-live .pers { pointer-events: none; opacity: .7; }
         .rf { fill: color-mix(in srgb, var(--primary-text-color) 4%, transparent);
           stroke: color-mix(in srgb, var(--primary-text-color) 35%, transparent); stroke-width: .06; stroke-linejoin: round; }
@@ -380,8 +390,18 @@ class TrigonPanel extends HTMLElement {
     this._tegnEtasjevalg(g.etasjer, valgt);
     kart.classList.toggle("ikke-live", this._fane !== "live");
     kart.classList.toggle("glod", this._fane === "live");
+    const tre = this._fane === "live" && valgt === "3d";
+    kart.classList.toggle("tre-d", tre);
+    // 3D: felles utsnitt for alle etasjer, så de ligger rett over hverandre
+    let felles = null;
+    if (tre) {
+      const alle = g.etasjer.flatMap((e) => e.rom.flatMap((r) => r.polygon)).concat(g.proxyer.map((p) => [p.x, p.y]));
+      if (!alle.length) alle.push([0, 0], [10, 8]);
+      const xs = alle.map((p) => p[0]), ys = alle.map((p) => p[1]);
+      felles = { x0: Math.min(...xs) - 0.4, x1: Math.max(...xs) + 0.4, y0: Math.min(...ys) - 0.4, y1: Math.max(...ys) + 0.4 };
+    }
     for (const e of g.etasjer) {
-      if (valgt !== "alle" && e.id !== valgt) continue;
+      if (valgt !== "alle" && valgt !== "3d" && e.id !== valgt) continue;
       const pts = e.rom.flatMap((r) => r.polygon).concat(g.proxyer.filter((p) => p.etasje === e.id).map((p) => [p.x, p.y]));
       if (!pts.length) pts.push([0, 0], [10, 8]);
       pts.push([0, 0]);
@@ -390,14 +410,16 @@ class TrigonPanel extends HTMLElement {
       void bg;
       if (bg && this._visBg && this._bilder[e.id]) pts.push([bg.x, bg.y], [bg.x + bg.w, bg.y + bg.h]);
       const pad = red ? 1.5 : 0.5;
-      const x0 = Math.min(...pts.map((p) => p[0])) - pad, x1 = Math.max(...pts.map((p) => p[0])) + pad;
-      const y0 = Math.min(...pts.map((p) => p[1])) - pad, y1 = Math.max(...pts.map((p) => p[1])) + pad;
+      let x0 = Math.min(...pts.map((p) => p[0])) - pad, x1 = Math.max(...pts.map((p) => p[0])) + pad;
+      let y0 = Math.min(...pts.map((p) => p[1])) - pad, y1 = Math.max(...pts.map((p) => p[1])) + pad;
+      if (felles) ({ x0, x1, y0, y1 } = felles);
       const div = document.createElement("div");
+      div.dataset.niva = e.niva;
       div.className = "etasje";
       div.innerHTML = `<h3>${esc(e.navn)}</h3>`;
       const svg = document.createElementNS(NS, "svg");
       const grunn = { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
-      const v = this._vis[e.id] = this._klem(this._vis[e.id], grunn);
+      const v = tre ? null : (this._vis[e.id] = this._klem(this._vis[e.id], grunn));
       const vv = v || grunn;
       svg.setAttribute("viewBox", `${vv.x} ${vv.y} ${vv.w} ${vv.h}`);
       const lag = {};
@@ -406,7 +428,7 @@ class TrigonPanel extends HTMLElement {
         <clipPath id="trigon-rund" clipPathUnits="objectBoundingBox"><circle cx=".5" cy=".5" r=".5"/></clipPath>`;
       svg.appendChild(defs);
       for (const n of ["bg", "rom", "sirkler", "spor", "kal", "px", "red", "pers", "mål"]) { lag[n] = document.createElementNS(NS, "g"); svg.appendChild(lag[n]); }
-      if (bg && this._visBg && this._bilder[e.id]) {
+      if (bg && this._visBg && this._bilder[e.id] && !tre) {
         const im = document.createElementNS(NS, "image");
         im.setAttribute("href", this._bilder[e.id].url);
         im.setAttribute("x", bg.x); im.setAttribute("y", bg.y); im.setAttribute("width", bg.w); im.setAttribute("height", bg.h);
@@ -458,12 +480,13 @@ class TrigonPanel extends HTMLElement {
       svg.addEventListener("pointerup", () => this._slippDra());
       svg.addEventListener("pointercancel", () => this._slippDra());
       if (red) svg.classList.add("klikk");
-      this._kobleZoom(svg, e.id, grunn, div);
+      if (!tre) this._kobleZoom(svg, e.id, grunn, div);
       div.appendChild(svg);
       kart.appendChild(div);
       this._svg[e.id] = { svg, lag, romEl, el: {} };
       if (red) this._tegnRed(e.id);
     }
+    if (tre && Object.keys(this._svg).length) this._lag3d(kart, felles);
     if (!Object.keys(this._svg).length) kart.innerHTML = `<div class="tom">Ingen etasjer ennå. Gå til «Rediger» og legg til en etasje, last opp plantegning og tegn rommene.</div>`;
     this._tegnKalPunkter();
     this._oversett(kart);
@@ -475,7 +498,7 @@ class TrigonPanel extends HTMLElement {
   _aktivEtasje(etasjer) {
     etasjer = etasjer || this._geo().etasjer;
     let v = this._etasjeFor[this._fane];
-    if (v === "alle" && this._fane === "live") return "alle";
+    if ((v === "alle" || (v === "3d" && etasjer.length > 1)) && this._fane === "live") return v;
     if (etasjer.some((e) => e.id === v)) return v;
     if (this._fane === "live") return "alle";
     const k = this._fane === "kal" && ((this._live && this._live.kalibrering) || this._kalPunkt);
@@ -500,9 +523,54 @@ class TrigonPanel extends HTMLElement {
     const liste = this._sorterEtasjer(etasjer);
     if (liste.length < 2 && this._fane !== "live") { el.innerHTML = ""; return; }
     const chip = (id, navn) => `<button class="chip ${id === valgt ? "aktiv" : ""}" data-e="${esc(id)}">${esc(navn)}<span class="ant" data-ant="${esc(id)}"></span></button>`;
-    el.innerHTML = (this._fane === "live" ? chip("alle", this._t("Alle etasjer")) : "") + liste.map((e) => chip(e.id, e.navn)).join("");
+    el.innerHTML = (this._fane === "live" ? chip("alle", this._t("Alle etasjer")) + (liste.length > 1 ? chip("3d", "3D") : "") : "") + liste.map((e) => chip(e.id, e.navn)).join("");
     el.querySelectorAll(".chip").forEach((b) => b.addEventListener("click", () => this._velgEtasje(b.dataset.e)));
     if (liste.length < 2 && this._fane === "live") el.innerHTML = "";
+  }
+
+  // Etasjene stablet skrått i 3D. Dra sidelengs for å snu huset (med mus også opp/ned for å vippe), dobbeltklikk for å nullstille.
+  _lag3d(kart, b) {
+    const W = b.x1 - b.x0, H = b.y1 - b.y0;
+    const scene = document.createElement("div");
+    scene.className = "scene";
+    const stabel = document.createElement("div");
+    stabel.className = "stabel";
+    stabel.style.aspectRatio = `${W} / ${H}`;
+    const etasjer = [...kart.querySelectorAll(".etasje")].sort((a, c) => Number(a.dataset.niva) - Number(c.dataset.niva));
+    const lavest = Number(etasjer[0].dataset.niva);
+    for (const d of etasjer) stabel.appendChild(d);
+    scene.appendChild(stabel);
+    kart.appendChild(scene);
+    const v = this._3d || (this._3d = { rot: -32, tilt: 58 });
+    const sett = () => { stabel.style.transform = `rotateX(${v.tilt}deg) rotateZ(${v.rot}deg)`; };
+    const plasser = () => {
+      const ppm = stabel.clientWidth / W;
+      // Etasjehøyden er overdrevet litt så etasjene er lette å skille
+      for (const d of etasjer) d.style.transform = `translateZ(${((Number(d.dataset.niva) - lavest) * 1.7 * ppm).toFixed(1)}px)`;
+      const topp = (Number(etasjer[etasjer.length - 1].dataset.niva) - lavest) * 1.7 * ppm;
+      scene.style.minHeight = `${Math.round(stabel.clientHeight * 0.75 + topp * 0.9 + 60)}px`;
+    };
+    sett();
+    requestAnimationFrame(plasser);
+    if (this._3dObs) this._3dObs.disconnect();
+    this._3dObs = new ResizeObserver(() => plasser());
+    this._3dObs.observe(stabel);
+    let dra = null;
+    scene.addEventListener("pointerdown", (ev) => { dra = { x: ev.clientX, y: ev.clientY, rot: v.rot, tilt: v.tilt, mus: ev.pointerType === "mouse", flyttet: false, id: ev.pointerId }; });
+    scene.addEventListener("pointermove", (ev) => {
+      if (!dra || dra.id !== ev.pointerId) return;
+      const dx = ev.clientX - dra.x, dy = ev.clientY - dra.y;
+      if (!dra.flyttet && Math.hypot(dx, dy) < 6) return;
+      if (!dra.flyttet) { dra.flyttet = true; try { scene.setPointerCapture(ev.pointerId); } catch (e) { /* ignorer */ } }
+      v.rot = dra.rot + dx * 0.4;
+      if (dra.mus) v.tilt = Math.min(Math.max(dra.tilt - dy * 0.3, 15), 75);
+      stabel.classList.add("drar"); sett();
+    });
+    const slipp = () => { if (dra && dra.flyttet) this._stoppKlikk = Date.now(); dra = null; stabel.classList.remove("drar"); };
+    scene.addEventListener("pointerup", slipp);
+    scene.addEventListener("pointercancel", slipp);
+    scene.addEventListener("click", (ev) => { if (this._stoppKlikk && Date.now() - this._stoppKlikk < 350) { ev.stopPropagation(); ev.preventDefault(); } }, true);
+    scene.addEventListener("dblclick", () => { v.rot = -32; v.tilt = 58; sett(); });
   }
 
   _klem(v, g) {
