@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Panel: one floor at a time with floor chips (Live also has "All floors", with a people count per floor). The choice is remembered per tab.
+- Panel: zoom and pan on the map – buttons, mouse wheel, pinch with two fingers, and drag with one finger when zoomed in.
+- Calibration/Edit: person dots no longer block taps, so you can pick a calibration point where your own dot is.
+
 ## 0.9.2
 
 - Entities no longer belong to a «TriGON» device, so names stay «Room - People» / «Name - Position» (newer HA prefixes the device name).

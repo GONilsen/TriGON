@@ -39,7 +39,7 @@ const EN = {
   "Lista viser Bluetooth-proxyer i HA som ikke er plassert ennå.": "The list shows Bluetooth proxies in HA that have not been placed yet.",
   "Vis oppsettet som YAML": "Show the setup as YAML", "Sikkerhetskopi": "Backup",
   "Ta vare på dette som sikkerhetskopi av oppsettet.": "Keep this as a backup of the setup.",
-  "Etasjer": "Floors", "Gulvnivå": "Floor level", "Legg til etasje": "Add floor", "Ingen etasjer ennå.": "No floors yet.",
+  "Etasjer": "Floors", "Alle etasjer": "All floors", "Zoom inn": "Zoom in", "Zoom ut": "Zoom out", "Hele etasjen": "Whole floor", "Gulvnivå": "Floor level", "Legg til etasje": "Add floor", "Ingen etasjer ennå.": "No floors yet.",
   "Gulvnivå er høyden på gulvet i meter i forhold til hovedetasjen (f.eks. 0, 2,75 og −2,65).": "Floor level is the height of the floor in metres relative to the main floor (e.g. 0, 2.75 and −2.65).",
   "Navn på etasjen (f.eks. 1. etasje)": "Name of the floor (e.g. Ground floor)",
   "Bermuda-enhet": "Bermuda device", "Legg til person …": "Add person …", "Ingen personer ennå.": "No people yet.",
@@ -153,6 +153,9 @@ class TrigonPanel extends HTMLElement {
     this._bilder = {};
     this._visBg = true;
     this._bgModus = null;
+    this._vis = {}; // zoom per etasje: {x, y, w, h} eller null
+    this._etasjeFor = { live: "alle" };
+    try { Object.assign(this._etasjeFor, JSON.parse(localStorage.getItem("trigon_etasje") || "{}")); } catch (e) { /* ignorer */ }
     for (const k of ["hass", "narrow", "panel"]) {
       if (Object.prototype.hasOwnProperty.call(this, k)) { const v = this[k]; delete this[k]; this[k] = v; }
     }
@@ -248,6 +251,21 @@ class TrigonPanel extends HTMLElement {
           color: var(--secondary-text-color); }
         svg { width: 100%; height: auto; display: block; touch-action: manipulation; }
         svg.klikk { cursor: crosshair; }
+        .etasje { position: relative; }
+        .zoom { position: absolute; top: 0; right: 0; display: flex; gap: 4px; z-index: 1; }
+        .zoom button { width: 32px; height: 32px; border-radius: 16px; border: 1px solid var(--divider-color); font: inherit; font-size: 17px;
+          line-height: 1; background: var(--card-background-color, #fff); color: var(--primary-text-color); cursor: pointer; padding: 0; }
+        .zoom button:disabled { opacity: .35; cursor: default; }
+        .etasjevalg { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+        .etasjevalg:empty { display: none; }
+        .chip { border: 1px solid var(--divider-color); background: none; color: var(--primary-text-color); font: inherit; font-size: 13px;
+          padding: 6px 14px; border-radius: 16px; cursor: pointer; display: inline-flex; gap: 6px; align-items: center; }
+        .chip.aktiv { background: var(--primary-color); border-color: var(--primary-color); color: var(--text-primary-color, #fff); }
+        .chip .ant { font-size: 11px; font-weight: 700; min-width: 18px; height: 18px; border-radius: 9px; display: inline-grid; place-items: center;
+          background: color-mix(in srgb, currentColor 18%, transparent); }
+        .chip .ant:empty { display: none; }
+        .halo, .sirkel { pointer-events: none; }
+        .ikke-live .pers { pointer-events: none; opacity: .7; }
         .rf { fill: color-mix(in srgb, var(--primary-text-color) 4%, transparent);
           stroke: color-mix(in srgb, var(--primary-text-color) 35%, transparent); stroke-width: .06; stroke-linejoin: round; }
         .rf.opptatt { fill: color-mix(in srgb, var(--primary-color) 14%, transparent); }
@@ -313,7 +331,7 @@ class TrigonPanel extends HTMLElement {
       </style>
       <div class="topp"><span class="meny"></span><h1 class="logo">${MERKE}<span class="tri">Tri</span><span class="gon">GON</span></h1>
         <div class="faner"><button class="fane" data-f="live">Live</button><button class="fane" data-f="kal">Kalibrering</button><button class="fane" data-f="red">Rediger</button></div></div>
-      <div class="innhold"><div class="kort"><div class="kart"><div class="tom">Laster …</div></div></div><div class="side"></div></div>`;
+      <div class="innhold"><div class="kort"><div class="etasjevalg"></div><div class="kart"><div class="tom">Laster …</div></div></div><div class="side"></div></div>`;
     if (customElements.get("ha-menu-button")) {
       this._menu = document.createElement("ha-menu-button");
       this._menu.hass = this._hass; this._menu.narrow = this._narrow;
@@ -333,7 +351,11 @@ class TrigonPanel extends HTMLElement {
     this._svg = {};
     const g = this._geo();
     const red = this._fane === "red";
+    const valgt = this._aktivEtasje(g.etasjer);
+    this._tegnEtasjevalg(g.etasjer, valgt);
+    kart.classList.toggle("ikke-live", this._fane !== "live");
     for (const e of g.etasjer) {
+      if (valgt !== "alle" && e.id !== valgt) continue;
       const pts = e.rom.flatMap((r) => r.polygon).concat(g.proxyer.filter((p) => p.etasje === e.id).map((p) => [p.x, p.y]));
       if (!pts.length) pts.push([0, 0], [10, 8]);
       pts.push([0, 0]);
@@ -348,7 +370,10 @@ class TrigonPanel extends HTMLElement {
       div.className = "etasje";
       div.innerHTML = `<h3>${esc(e.navn)}</h3>`;
       const svg = document.createElementNS(NS, "svg");
-      svg.setAttribute("viewBox", `${x0} ${y0} ${x1 - x0} ${y1 - y0}`);
+      const grunn = { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+      const v = this._vis[e.id] = this._klem(this._vis[e.id], grunn);
+      const vv = v || grunn;
+      svg.setAttribute("viewBox", `${vv.x} ${vv.y} ${vv.w} ${vv.h}`);
       const lag = {};
       for (const n of ["bg", "rom", "sirkler", "kal", "px", "red", "pers", "mål"]) { lag[n] = document.createElementNS(NS, "g"); svg.appendChild(lag[n]); }
       if (bg && this._visBg && this._bilder[e.id]) {
@@ -399,7 +424,8 @@ class TrigonPanel extends HTMLElement {
       svg.addEventListener("pointermove", (ev) => this._dra(ev, svg));
       svg.addEventListener("pointerup", () => this._slippDra());
       svg.addEventListener("pointercancel", () => this._slippDra());
-      if (red) { svg.classList.add("klikk"); svg.style.touchAction = "none"; }
+      if (red) svg.classList.add("klikk");
+      this._kobleZoom(svg, e.id, grunn, div);
       div.appendChild(svg);
       kart.appendChild(div);
       this._svg[e.id] = { svg, lag, romEl, el: {} };
@@ -408,6 +434,140 @@ class TrigonPanel extends HTMLElement {
     if (!Object.keys(this._svg).length) kart.innerHTML = `<div class="tom">Ingen etasjer ennå. Gå til «Rediger» og legg til en etasje, last opp plantegning og tegn rommene.</div>`;
     this._tegnKalPunkter();
     this._oversett(kart);
+  }
+
+  _sorterEtasjer(etasjer) { return etasjer.slice().sort((a, b) => b.niva - a.niva); }
+
+  // Hvilken etasje som vises i denne fanen ("alle" bare i Live)
+  _aktivEtasje(etasjer) {
+    etasjer = etasjer || this._geo().etasjer;
+    let v = this._etasjeFor[this._fane];
+    if (v === "alle" && this._fane === "live") return "alle";
+    if (etasjer.some((e) => e.id === v)) return v;
+    if (this._fane === "live") return "alle";
+    const k = this._fane === "kal" && ((this._live && this._live.kalibrering) || this._kalPunkt);
+    if (k && etasjer.some((e) => e.id === k.floor)) return k.floor;
+    const null0 = etasjer.find((e) => e.niva === 0);
+    return null0 ? null0.id : (this._sorterEtasjer(etasjer)[0] || {}).id || "alle";
+  }
+
+  _velgEtasje(id) {
+    this._etasjeFor[this._fane] = id;
+    if (this._fane === "red" && id !== "alle") {
+      if (this._bgModus && this._bgModus.floor !== id) this._bgModus = null;
+      this._bgEtasje = id;
+    }
+    try { localStorage.setItem("trigon_etasje", JSON.stringify(this._etasjeFor)); } catch (e) { /* ignorer */ }
+    this._sideHtml = null; this._tegnKart(); this._tegnSide(); this._oppdaterKart();
+  }
+
+  _tegnEtasjevalg(etasjer, valgt) {
+    const el = this.shadowRoot.querySelector(".etasjevalg");
+    if (!el) return;
+    const liste = this._sorterEtasjer(etasjer);
+    if (liste.length < 2 && this._fane !== "live") { el.innerHTML = ""; return; }
+    const chip = (id, navn) => `<button class="chip ${id === valgt ? "aktiv" : ""}" data-e="${esc(id)}">${esc(navn)}<span class="ant" data-ant="${esc(id)}"></span></button>`;
+    el.innerHTML = (this._fane === "live" ? chip("alle", this._t("Alle etasjer")) : "") + liste.map((e) => chip(e.id, e.navn)).join("");
+    el.querySelectorAll(".chip").forEach((b) => b.addEventListener("click", () => this._velgEtasje(b.dataset.e)));
+    if (liste.length < 2 && this._fane === "live") el.innerHTML = "";
+  }
+
+  _klem(v, g) {
+    if (!v) return null;
+    const w = Math.min(Math.max(v.w, g.w / 12), g.w);
+    if (w >= g.w * 0.999) return null;
+    const h = w * g.h / g.w;
+    return { x: Math.min(Math.max(v.x, g.x), g.x + g.w - w), y: Math.min(Math.max(v.y, g.y), g.y + g.h - h), w, h };
+  }
+
+  // Zoom og panorering: knapper, musehjul, to fingre (knip) og én finger når kartet er zoomet inn
+  _kobleZoom(svg, fid, g, div) {
+    const pek = new Map();
+    let knip = null, pan = null;
+    const vis = () => this._vis[fid] || g;
+    const knapper = document.createElement("div");
+    knapper.className = "zoom";
+    knapper.innerHTML = `<button data-z="inn" title="${this._t("Zoom inn")}">+</button><button data-z="ut" title="${this._t("Zoom ut")}">−</button><button data-z="hel" title="${this._t("Hele etasjen")}">⤢</button>`;
+    const touch = () => {
+      const zoomet = !!this._vis[fid];
+      svg.style.touchAction = zoomet || this._fane === "red" ? "none" : "pan-y";
+      knapper.querySelector('[data-z="ut"]').disabled = !zoomet;
+      knapper.querySelector('[data-z="hel"]').disabled = !zoomet;
+    };
+    const sett = (v) => {
+      this._vis[fid] = this._klem(v, g);
+      const n = vis();
+      svg.setAttribute("viewBox", `${n.x} ${n.y} ${n.w} ${n.h}`);
+      touch();
+    };
+    const rekt = () => svg.getBoundingClientRect();
+    const tilVerden = (cx, cy, v) => { const r = rekt(); return [v.x + (cx - r.left) * v.w / r.width, v.y + (cy - r.top) * v.h / r.height]; };
+    const plasser = (w, cx, cy, wx, wy) => {
+      const r = rekt();
+      w = Math.min(Math.max(w, g.w / 12), g.w);
+      const h = w * g.h / g.w;
+      sett({ x: wx - (cx - r.left) * w / r.width, y: wy - (cy - r.top) * h / r.height, w, h });
+    };
+    const zoomRundt = (cx, cy, faktor) => { const v = vis(); const [wx, wy] = tilVerden(cx, cy, v); plasser(v.w / faktor, cx, cy, wx, wy); };
+    knapper.addEventListener("click", (ev) => {
+      const b = ev.target.closest("button"); if (!b) return;
+      ev.stopPropagation();
+      const r = rekt(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+      if (b.dataset.z === "hel") sett(null); else zoomRundt(cx, cy, b.dataset.z === "inn" ? 1.6 : 1 / 1.6);
+    });
+    knapper.addEventListener("pointerdown", (ev) => ev.stopPropagation());
+    div.appendChild(knapper);
+    touch();
+    svg.addEventListener("wheel", (ev) => {
+      ev.preventDefault();
+      zoomRundt(ev.clientX, ev.clientY, Math.exp(-ev.deltaY * (ev.deltaMode ? 0.05 : 0.002)));
+    }, { passive: false });
+    const midt = () => { const [a, b] = [...pek.values()]; return [(a.x + b.x) / 2, (a.y + b.y) / 2, Math.hypot(a.x - b.x, a.y - b.y)]; };
+    svg.addEventListener("pointerdown", (ev) => {
+      pek.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+      if (pek.size === 2) {
+        // Andre finger: avbryt dra/trykk og start knip
+        ev.stopPropagation(); ev.preventDefault();
+        if (this._draObj) { if (this._draObj.flyttet) this._endret = true; this._draObj = null; }
+        pan = null;
+        const [mx, my, d] = midt();
+        const v = vis();
+        knip = { d0: Math.max(d, 1), w0: v.w, p0: tilVerden(mx, my, v) };
+        for (const id of pek.keys()) { try { svg.setPointerCapture(id); } catch (e) { /* ignorer */ } }
+      } else if (pek.size === 1) {
+        pan = { id: ev.pointerId, sx: ev.clientX, sy: ev.clientY, v0: vis(), aktiv: false };
+      }
+    }, true);
+    svg.addEventListener("pointermove", (ev) => {
+      if (!pek.has(ev.pointerId)) return;
+      pek.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+      if (knip && pek.size >= 2) {
+        const [mx, my, d] = midt();
+        plasser(knip.w0 * knip.d0 / Math.max(d, 1), mx, my, knip.p0[0], knip.p0[1]);
+        this._stoppKlikk = Date.now();
+        return;
+      }
+      if (!pan || pan.id !== ev.pointerId || this._draObj || !this._vis[fid]) return;
+      if (!pan.aktiv) {
+        if (Math.hypot(ev.clientX - pan.sx, ev.clientY - pan.sy) < 6) return;
+        pan.aktiv = true;
+        try { svg.setPointerCapture(ev.pointerId); } catch (e) { /* ignorer */ }
+      }
+      const r = rekt(), v = pan.v0;
+      sett({ x: v.x - (ev.clientX - pan.sx) * v.w / r.width, y: v.y - (ev.clientY - pan.sy) * v.h / r.height, w: v.w, h: v.h });
+      this._stoppKlikk = Date.now();
+    });
+    const slipp = (ev) => {
+      pek.delete(ev.pointerId);
+      if (knip && pek.size < 2) { knip = null; this._stoppKlikk = Date.now(); }
+      if (pan && pan.id === ev.pointerId) { if (pan.aktiv) this._stoppKlikk = Date.now(); pan = null; }
+    };
+    svg.addEventListener("pointerup", slipp);
+    svg.addEventListener("pointercancel", slipp);
+    // Et trykk som var en zoom/panorering skal ikke velge punkt eller rom
+    svg.addEventListener("click", (ev) => {
+      if (this._stoppKlikk && Date.now() - this._stoppKlikk < 350) { ev.stopPropagation(); ev.preventDefault(); }
+    }, true);
   }
 
   _kartKlikk(ev, etasje, svg) {
@@ -485,6 +645,12 @@ class TrigonPanel extends HTMLElement {
       for (const [pid, m] of Object.entries(f.el)) if (!iBruk.includes(pid)) { m.g.remove(); delete f.el[pid]; }
       for (const [rid, pg] of Object.entries(f.romEl)) pg.classList.toggle("opptatt", !!opptatt[rid]);
     }
+    const ant = {};
+    for (const s of Object.values(live.personer || {})) if (s && s.hjemme && s.etasje) ant[s.etasje] = (ant[s.etasje] || 0) + 1;
+    this.shadowRoot.querySelectorAll(".chip .ant").forEach((el) => {
+      const n = this._fane === "live" && el.dataset.ant !== "alle" ? ant[el.dataset.ant] || 0 : 0;
+      el.textContent = n ? String(n) : "";
+    });
     // Avstandssirkler for valgt person (horisontal avstand i personens etasje)
     if (this._fane === "live" && this._sirkler && this._valgt) {
       const s = live.personer[this._valgt];
@@ -613,7 +779,8 @@ class TrigonPanel extends HTMLElement {
         <div class="knapper"><button class="knapp start" ${k ? "" : "disabled"}>Start måling</button></div>
         <div class="sm">Hold telefonen i hånda eller lomma som vanlig og stå stille til tiden er ute.</div>`;
     }
-    const dek = this._romDekning();
+    const vf = this._aktivEtasje();
+    const dek = this._romDekning().filter((d) => vf === "alle" || d.e.id === vf);
     const romrader = dek.map((d) => {
       const fullt = d.n >= d.mål;
       const kv = d.kv && d.kv.treff_pct != null ? `<span class="${d.kv.treff_pct >= 80 ? "ok" : d.kv.treff_pct >= 50 ? "middels" : "dårlig"}">${d.kv.treff_pct} %</span>` : `<span class="sm">–</span>`;
@@ -1103,6 +1270,8 @@ class TrigonPanel extends HTMLElement {
   _sideBg() {
     const u = this._utkast;
     const etasjer = Object.entries(u.floors).sort((a, b) => b[1].level - a[1].level);
+    const vf = this._aktivEtasje();
+    if (vf && vf !== "alle" && u.floors[vf]) this._bgEtasje = vf;
     if (!this._bgEtasje || !u.floors[this._bgEtasje]) this._bgEtasje = etasjer.length ? etasjer[0][0] : null;
     const fid = this._bgEtasje;
     const m = (this._modell.planer || {})[fid];
@@ -1209,7 +1378,7 @@ class TrigonPanel extends HTMLElement {
       const s = (this._ledige || []).find((x) => x.address === e.target.value);
       if (s) { this._plasser = s; this._valg = null; this._sideHtml = null; this._tegnSide(); }
     });
-    if (q(".bg-etasje")) q(".bg-etasje").addEventListener("change", (e) => { this._bgEtasje = e.target.value; this._bgModus = null; this._sideHtml = null; this._tegnSide(); });
+    if (q(".bg-etasje")) q(".bg-etasje").addEventListener("change", (e) => { this._bgEtasje = e.target.value; this._bgModus = null; this._velgEtasje(e.target.value); });
     if (q(".bg-fil")) q(".bg-fil").addEventListener("change", (e) => { const f = e.target.files && e.target.files[0]; if (f) this._lastOpp(this._bgEtasje, f); });
     if (q(".bg-op")) q(".bg-op").addEventListener("change", (e) => this._settBg(this._bgEtasje, { opacity: Number(e.target.value) }));
     if (q(".bg-avstand")) q(".bg-avstand").addEventListener("click", () => { this._bgModus = { type: "avstand", floor: this._bgEtasje, pts: [] }; this._valg = null; this._sideHtml = null; this._tegnKart(); this._tegnSide(); });
