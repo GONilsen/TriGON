@@ -60,7 +60,7 @@ class Settings:
     fp_k: int = 3  # number of fingerprint neighbours
     fp_good: float = 6.0  # dB: below this, full fingerprint weight
     fp_bad: float = 16.0  # dB: above this, fingerprints are ignored
-    fp_blend: float = 0.5  # share of fingerprint position at full weight
+    fp_blend: float = 0.7  # share of fingerprint position at full weight
 
 
 @dataclass
@@ -337,6 +337,17 @@ class Tracker:
                 self.room, self.room_cand, self.room_cnt = room, None, 0
         else:
             self.room_cand, self.room_cnt = None, 0
+
+        # The dot must lie in the room that is shown (fingerprint votes or hysteresis may pick another room
+        # than the raw x/y). Pull it just inside that room's polygon.
+        if self.room is not None and not point_in_polygon(x, y, self.room.polygon):
+            (px, py), _ = closest_point_in_polygon(x, y, self.room.polygon)
+            cx = sum(p[0] for p in self.room.polygon) / len(self.room.polygon)
+            cy = sum(p[1] for p in self.room.polygon) / len(self.room.polygon)
+            ix, iy = px + 0.08 * (cx - px), py + 0.08 * (cy - py)
+            if point_in_polygon(ix, iy, self.room.polygon):
+                px, py = ix, iy
+            x, y = px, py
 
         return Result(fl.id, x, y, max(rms, 0.5), self.room, nearest.scanner, len(obs), round(wk, 2))
 

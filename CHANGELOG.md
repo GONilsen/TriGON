@@ -5,6 +5,7 @@
 - Floor attenuation per proxy: calibration now also fits the extra loss through a floor slab (shown as «Floor dB»), and distances to proxies on other floors are corrected when each floor is tested. Fixes rooms above/below each other (e.g. a bedroom over the garage) being mixed up.
 - RSSI is smoothed per proxy between rounds, so a single noisy reading no longer moves you.
 - Stricter switching: a new floor must hold for 3 rounds and a new room for 4 (was 2/2). In a simulation with the real calibration points this halved room flicker for someone standing still and raised the correct floor from 84 % to over 90 %.
+- The dot is always drawn inside the room that is shown (no more «Anine rom» with the dot in the next room), and good fingerprint matches weigh more on the position (blend 0.5 → 0.7).
 - Recalculate the calibration after updating («Compute calibration») to fit the new floor attenuation.
 
 ## 0.9.3
