@@ -236,7 +236,7 @@ class Coordinator:
             newest = min((r["age"] for r in raw.values()), default=None)
             off = self.calib.offset(p.id)
             live = {a: r["rssi"] - off - st.level for a, r in raw.items() if r["rssi"] is not None} if fps else None
-            res = st.tracker.update(obs, self.model.floors, self.model.settings, dev.get("floor_id"), live, fps)
+            res = st.tracker.update(obs, self.model.floors, self.model.settings, dev.get("floor_id"), live, fps, p.id)
             if res is not None and res.level_shift:
                 st.level = max(-LEVEL_MAX, min(LEVEL_MAX, st.level + LEVEL_RATE * res.level_shift))
             if res is not None:

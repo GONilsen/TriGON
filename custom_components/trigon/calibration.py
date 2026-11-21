@@ -147,7 +147,7 @@ class Calibration:
         room = next((r.id for r in rooms if point_in_polygon(p["x"], p["y"], r.polygon)), None)
         off = self.offset(p["person"])
         return Fingerprint(p["floor"], p["x"], p["y"], room,
-                           {a: r - off for a, r in p["rssi"].items() if a in model.scanners})
+                           {a: r - off for a, r in p["rssi"].items() if a in model.scanners}, p["person"])
 
     def fingerprints(self, model: Model) -> list[Fingerprint]:
         if not self.active:

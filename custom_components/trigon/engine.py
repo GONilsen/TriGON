@@ -61,6 +61,7 @@ class Settings:
     fp_good: float = 6.0  # dB: below this, full fingerprint weight
     fp_bad: float = 16.0  # dB: above this, fingerprints are ignored
     fp_blend: float = 0.7  # share of fingerprint position at full weight
+    fp_gate: float = 3.0  # m: fingerprints further than this from the trilateration lose weight
 
 
 @dataclass
@@ -70,11 +71,12 @@ class Fingerprint:
     y: float
     room: str | None
     rssi: dict[str, float]  # normalised (phone offset subtracted)
+    person: str | None = None  # whose phone measured it
 
 
 FP_MISSING = -100.0
 FP_WEAK = -88.0  # a scanner missing on one side only counts by how much stronger than this it is on the other
-FP_MAX_SHIFT = 15.0  # dB: largest level difference between phone and fingerprint that is evened out
+FP_MAX_SHIFT = 6.0  # dB: largest level difference between phone and fingerprint that is evened out per match
 
 
 def fp_match(a: dict[str, float], b: dict[str, float]) -> tuple[float, float]:
@@ -105,12 +107,19 @@ def fp_distance(a: dict[str, float], b: dict[str, float]) -> float:
     return fp_match(a, b)[0]
 
 
-def knn(live: dict[str, float], fps: list[Fingerprint], k: int = 3):
-    """Return [(weight, fingerprint)] for the k nearest, the best distance (dB) and the best match's level shift."""
+def knn(live: dict[str, float], fps: list[Fingerprint], k: int = 3, person: str | None = None):
+    """Return [(weight, fingerprint)] for the k nearest, the best distance (dB) and a level shift.
+
+    The level shift comes only from the person's own fingerprints among the nearest: those were measured
+    with the same phone, so a shift there means the phone itself sends stronger/weaker now. Shifts against
+    other phones' points or other places would teach a wrong level.
+    """
     if not live or not fps:
         return [], 99.0, 0.0
     nb = sorted(((*fp_match(live, f.rssi), f) for f in fps), key=lambda t: t[0])[:k]
-    return [(1.0 / (d + 1.0), f) for d, _, f in nb], nb[0][0], nb[0][1]
+    own = [(d, sh) for d, sh, f in nb if person is not None and f.person == person]
+    shift = own[0][1] if own else 0.0
+    return [(1.0 / (d + 1.0), f) for d, _, f in nb], nb[0][0], shift
 
 
 @dataclass
@@ -243,14 +252,14 @@ class Tracker:
 
     def update(self, obs: list[Obs], floors: dict[str, Floor], s: Settings,
                hint_floor: str | None = None, live_rssi: dict[str, float] | None = None,
-               fingerprints: list[Fingerprint] | None = None) -> Result | None:
+               fingerprints: list[Fingerprint] | None = None, person: str | None = None) -> Result | None:
         obs = [o for o in obs if o.distance is not None and 0 < o.distance <= s.max_distance]
         if not obs:
             return None
         nearest = min(obs, key=lambda o: o.distance)
 
         # Fingerprints: neighbours and a weight based on how well the best neighbour matches
-        nb, best, shift = knn(live_rssi or {}, fingerprints or [], s.fp_k)
+        nb, best, shift = knn(live_rssi or {}, fingerprints or [], s.fp_k, person)
         wk = 0.0 if not nb else max(0.0, min(1.0, (s.fp_bad - best) / (s.fp_bad - s.fp_good)))
         fp_floor = None
         if wk > 0:
@@ -306,6 +315,11 @@ class Tracker:
             sw = sum(w for w, _ in same)
             kx = sum(w * f.x for w, f in same) / sw
             ky = sum(w * f.y for w, f in same) / sw
+            # Fingerprints far from where the distances put you are less trustworthy (signals change over time,
+            # and a few points can look alike); they lose weight beyond fp_gate metres.
+            gap = math.hypot(kx - x, ky - y)
+            if gap > s.fp_gate:
+                wk *= max(0.15, math.exp(-((gap - s.fp_gate) / 2.0) ** 2))
             a = s.fp_blend * wk
             x, y = (1 - a) * x + a * kx, (1 - a) * y + a * ky
 
