@@ -77,6 +77,8 @@ class Fingerprint:
 FP_MISSING = -100.0
 FP_WEAK = -88.0  # a scanner missing on one side only counts by how much stronger than this it is on the other
 FP_MAX_SHIFT = 6.0  # dB: largest level difference between phone and fingerprint that is evened out per match
+FP_SHIFT_COST = 0.3  # a match that needs a large level shift is less certain (added in quadrature, per dB of shift)
+FP_OWN = 0.8  # points measured with the same phone count as this much closer (same antenna and offset)
 
 
 def fp_match(a: dict[str, float], b: dict[str, float]) -> tuple[float, float]:
@@ -100,7 +102,7 @@ def fp_match(a: dict[str, float], b: dict[str, float]) -> tuple[float, float]:
             sq.append(max(0.0, b[k] - FP_WEAK) ** 2)
     if not sq:
         return 99.0, 0.0
-    return math.sqrt(sum(sq) / len(sq)), shift
+    return math.sqrt(sum(sq) / len(sq) + (FP_SHIFT_COST * shift) ** 2), shift
 
 
 def fp_distance(a: dict[str, float], b: dict[str, float]) -> float:
@@ -116,7 +118,13 @@ def knn(live: dict[str, float], fps: list[Fingerprint], k: int = 3, person: str 
     """
     if not live or not fps:
         return [], 99.0, 0.0
-    nb = sorted(((*fp_match(live, f.rssi), f) for f in fps), key=lambda t: t[0])[:k]
+    nb = []
+    for f in fps:
+        d, sh = fp_match(live, f.rssi)
+        if person is not None and f.person == person:
+            d *= FP_OWN
+        nb.append((d, sh, f))
+    nb = sorted(nb, key=lambda t: t[0])[:k]
     own = [(d, sh) for d, sh, f in nb if person is not None and f.person == person]
     shift = own[0][1] if own else 0.0
     return [(1.0 / (d + 1.0), f) for d, _, f in nb], nb[0][0], shift
@@ -317,9 +325,11 @@ class Tracker:
             ky = sum(w * f.y for w, f in same) / sw
             # Fingerprints far from where the distances put you are less trustworthy (signals change over time,
             # and a few points can look alike); they lose weight beyond fp_gate metres.
+            # The gate widens with the trilateration's own residual: a poor fit says little about where you are.
             gap = math.hypot(kx - x, ky - y)
-            if gap > s.fp_gate:
-                wk *= max(0.15, math.exp(-((gap - s.fp_gate) / 2.0) ** 2))
+            gate = s.fp_gate + rms
+            if gap > gate:
+                wk *= max(0.15, math.exp(-((gap - gate) / 2.0) ** 2))
             a = s.fp_blend * wk
             x, y = (1 - a) * x + a * kx, (1 - a) * y + a * ky
 
