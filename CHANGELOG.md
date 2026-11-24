@@ -1,12 +1,13 @@
 # Changelog
 
-## Unreleased
+## 0.9.4
 
 - Floor attenuation per proxy: calibration now also fits the extra loss through a floor slab (shown as «Floor dB»), and distances to proxies on other floors are corrected when each floor is tested. Fixes rooms above/below each other (e.g. a bedroom over the garage) being mixed up.
 - RSSI is smoothed per proxy between rounds, so a single noisy reading no longer moves you.
 - Stricter switching: a new floor must hold for 3 rounds and a new room for 4 (was 2/2). In a simulation with the real calibration points this halved room flicker for someone standing still and raised the correct floor from 84 % to over 90 %.
 - The dot is always drawn inside the room that is shown (no more «Anine rom» with the dot in the next room), and good fingerprint matches weigh more on the position (blend 0.5 → 0.7).
 - Fingerprints compare the pattern across proxies, not the absolute level: a common level shift is removed (phones send with varying power), and weak proxies heard on only one side no longer count as −100 dB. A phone's current level is learnt only from matches with its own calibration points (same phone), capped at ±6 dB per match, and also corrects its distances. Fingerprints that point more than 3 m away from where the distances put you lose weight, so a few look-alike points elsewhere no longer override a good trilateration.
+- Calibration points taken with the same phone count more (0.8× distance), a large level shift is penalised, and the fingerprint gate widens with the trilateration residual, so a correct fingerprint is no longer discarded when the distances are off (e.g. a bedroom right above another proxy).
 - Recalculate the calibration after updating («Compute calibration») to fit the new floor attenuation.
 
 ## 0.9.3
