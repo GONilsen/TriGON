@@ -9,7 +9,7 @@
 Floor, room and x/y position for every person – built on <a href="https://github.com/agittins/bermuda">Bermuda</a> BLE data and your own floor plan.</p>
 
 <p align="center">
-  <a href="https://github.com/hacs/integration"><img src="https://img.shields.io/badge/HACS-Custom-41BDF5.svg" alt="HACS Custom"></a>
+  <a href="https://github.com/hacs/integration"><img src="https://img.shields.io/badge/HACS-Default-41BDF5.svg" alt="HACS Default"></a>
   <a href="https://github.com/GONilsen/TriGON/actions/workflows/validate.yml"><img src="https://github.com/GONilsen/TriGON/actions/workflows/validate.yml/badge.svg" alt="Validate"></a>
   <img src="https://img.shields.io/github/v/release/GONilsen/TriGON" alt="Release">
 </p>
@@ -68,11 +68,26 @@ The panel follows your Home Assistant language (English, Norwegian).
 
 ## Installation
 
-### HACS (custom repository)
+### HACS / Marketplace (recommended)
+
+TriGON is in the default HACS catalogue.
+
+[![Open your Home Assistant instance and open TriGON in HACS.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=GONilsen&repository=TriGON&category=integration)
+
+1. Open **HACS** (or the **Marketplace**), search for **TriGON** and install it.
+2. Restart Home Assistant.
+3. **Settings → Devices & services → Add integration → TriGON**.
+
+<details>
+<summary>Fallback: add it as a custom repository</summary>
+
+If TriGON does not show up in the search (e.g. an older HACS cache):
 
 1. HACS → ⋮ → **Custom repositories** → add `https://github.com/GONilsen/TriGON`, category **Integration**.
 2. Install **TriGON** and restart Home Assistant.
 3. **Settings → Devices & services → Add integration → TriGON**.
+
+</details>
 
 ### Manual
 
