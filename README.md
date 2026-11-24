@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="custom_components/trigon/brand/dark_logo.png">
-    <img src="custom_components/trigon/brand/logo.png" alt="TriGON" height="110">
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/GONilsen/TriGON/main/custom_components/trigon/brand/dark_logo.png">
+    <img src="https://raw.githubusercontent.com/GONilsen/TriGON/main/custom_components/trigon/brand/logo.png" alt="TriGON" height="110">
   </picture>
 </p>
 
@@ -14,7 +14,20 @@ Floor, room and x/y position for every person – built on <a href="https://gith
   <img src="https://img.shields.io/github/v/release/GONilsen/TriGON" alt="Release">
 </p>
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/GONilsen/TriGON/main/docs/images/live-map.svg" alt="TriGON live map: every person as a dot on your floor plan, occupied rooms lit up" width="860">
+</p>
+
 ---
+
+## Highlights
+
+- **Room and x/y position for every person**, shown live on your own floor plan
+- **Per-room presence sensors** (`binary_sensor.<room>_occupancy`) for lights, heating and music that follow you
+- **Floor detection** that is not fooled by a proxy in the ceiling right below you
+- **Calibration in the browser**: walk around, tap where you stand, press *Compute*
+- **Dashboard card** with a dark glow map, trails, radar pulse and a 3D view of all floors
+- **100 % local** – no cloud, no YAML
 
 ## What it does
 
@@ -24,6 +37,10 @@ Bermuda tells you which **area** a phone is closest to. TriGON goes a step furth
 - **Fingerprinting** – stand still for 20 seconds at a few known spots per room. TriGON learns what the signal looks like there and blends this with trilateration. In a real house this raised correct-room hits from 47 % to 79 % (leave-one-out test).
 - **Floor detection** – the floor that best explains *all* distances wins, so a proxy in the ceiling right below you no longer moves you down a floor.
 - **Per-scanner calibration** – each proxy gets its own RSSI→distance model, and other phones are adjusted to the reference phone with just 1–2 points.
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/GONilsen/TriGON/main/docs/images/how-it-works.svg" alt="Trilateration, fingerprints and floor detection" width="860">
+</p>
 
 Everything is set up in the **TriGON panel** in the sidebar – no YAML.
 
@@ -35,7 +52,13 @@ Everything is set up in the **TriGON panel** in the sidebar – no YAML.
 | **Calibration** | Tap where you stand, measure for 15–45 s, repeat. Coverage per room, "Compute calibration", hit rate and mean error per room. |
 | **Edit** | Floors, background floor plan (upload, scale from a known distance, place by a known point), origin, rooms (drag walls in parallel, drag corners with 45°/90° snapping, wall lengths, exact length input, area), proxies (drag, height, room), people (pick from Bermuda devices), YAML backup. |
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/GONilsen/TriGON/main/docs/images/calibration.svg" alt="Calibration tab: measuring points per room, hit rate and mean error" width="860">
+</p>
+
 The panel follows your Home Assistant language (English, Norwegian).
+
+<sub>The images show a demo house with demo people.</sub>
 
 ## Requirements
 
